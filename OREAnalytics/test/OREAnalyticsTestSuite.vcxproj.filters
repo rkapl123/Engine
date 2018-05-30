@@ -45,6 +45,9 @@
     <ClInclude Include="sensitivityanalysis2.hpp">
       <Filter>headers</Filter>
     </ClInclude>
+    <ClInclude Include="oreInMem.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cube.cpp">
@@ -82,6 +85,9 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="testmarket.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="oreInMem.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>

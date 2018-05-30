@@ -254,6 +254,11 @@ void OREApp::getConventions() {
         string inputPath = params_->get("setup", "inputPath");
         string conventionsFile = inputPath + "/" + params_->get("setup", "conventionsFile");
         conventions_.fromFile(conventionsFile);
+    } else if (configXMLs_.find("conventions") != configXMLs_.end()) {
+        // in case sensitivity marketConfig doesn't come from file, try from memory...
+        XMLDocument conventionsXML = XMLDocument();
+        conventionsXML.fromXMLString(configXMLs_.find("conventions")->second.c_str());
+        conventions_.fromXML(conventionsXML.getFirstNode(""));
     } else {
         WLOG("No conventions file loaded");
     }
@@ -283,6 +288,11 @@ void OREApp::buildMarket() {
             string curveConfigFile = inputPath + "/" + params_->get("setup", "curveConfigFile");
             curveConfigs.fromFile(curveConfigFile);
             out_ << "OK" << endl;
+        } else if (configXMLs_.find("curveconfig") != configXMLs_.end()) {
+            // in case sensitivity marketConfig doesn't come from file, try from memory...
+            XMLDocument curveconfigXML = XMLDocument();
+            curveconfigXML.fromXMLString(configXMLs_.find("curveconfig")->second.c_str());
+            curveConfigs.fromXML(curveconfigXML.getFirstNode(""));
         } else {
             WLOG("No curve configurations loaded from file");
         }
@@ -297,6 +307,11 @@ void OREApp::getMarketParameters() {
         string inputPath = params_->get("setup", "inputPath");
         string marketConfigFile = inputPath + "/" + params_->get("setup", "marketConfigFile");
         marketParameters_.fromFile(marketConfigFile);
+    } else if (configXMLs_.find("todaysmarket") != configXMLs_.end()) {
+        // in case todaysmarket doesn't come from file, try from memory...
+        XMLDocument marketConfigXML = XMLDocument();
+        marketConfigXML.fromXMLString(configXMLs_.find("todaysmarket")->second.c_str());
+        marketParameters_.fromXML(marketConfigXML.getFirstNode(""));
     } else {
         WLOG("No market parameters loaded");
     }
@@ -306,10 +321,18 @@ boost::shared_ptr<EngineFactory> OREApp::buildEngineFactory(const boost::shared_
                                                             const string& groupName) {
     map<MarketContext, string> configurations;
     boost::shared_ptr<EngineData> engineData = boost::make_shared<EngineData>();
-    string inputPath = params_->get("setup", "inputPath");
-    string pricingEnginesFile = inputPath + "/" + params_->get(groupName, "pricingEnginesFile");
-    if (params_->get(groupName, "pricingEnginesFile") != "")
+    if (params_->get(groupName, "pricingEnginesFile") != "") {
+        string inputPath = params_->get("setup", "inputPath");
+        string pricingEnginesFile = inputPath + "/" + params_->get(groupName, "pricingEnginesFile");
         engineData->fromFile(pricingEnginesFile);
+    } else if (configXMLs_.find("pricingEngines") != configXMLs_.end()) {
+        XMLDocument pricingEngineXML = XMLDocument();
+        pricingEngineXML.fromXMLString(configXMLs_.find("pricingEngines")->second.c_str());
+        engineData->fromXML(pricingEngineXML.getFirstNode(""));
+    } else {
+        WLOG("no PricingEngines loaded");
+    }
+
     configurations[MarketContext::irCalibration] = params_->get("markets", "lgmcalibration");
     configurations[MarketContext::fxCalibration] = params_->get("markets", "fxcalibration");
     configurations[MarketContext::pricing] = params_->get("markets", "pricing");
@@ -323,8 +346,13 @@ boost::shared_ptr<Portfolio> OREApp::buildPortfolio(const boost::shared_ptr<Engi
     string inputPath = params_->get("setup", "inputPath");
     string portfoliosString = params_->get("setup", "portfolioFile");
     boost::shared_ptr<Portfolio> portfolio = boost::make_shared<Portfolio>();
-    if (params_->get("setup", "portfolioFile") == "")
+    if (params_->get("setup", "portfolioFile") == "") {
+        // in case portfolio doesn't come from file, try from memory...
+        if (configXMLs_.find("portfolio") != configXMLs_.end()) {
+            portfolio->loadFromXMLString(configXMLs_.find("portfolio")->second.c_str(), buildTradeFactory());
+        }
         return portfolio;
+    }
     vector<string> portfolioFiles;
     boost::split(portfolioFiles, portfoliosString, boost::is_any_of(",;"), boost::token_compress_on);
     for (auto portfolioFile : portfolioFiles) {
@@ -337,30 +365,59 @@ boost::shared_ptr<Portfolio> OREApp::buildPortfolio(const boost::shared_ptr<Engi
 }
 
 boost::shared_ptr<ScenarioSimMarketParameters> OREApp::getSimMarketData() {
-    string inputPath = params_->get("setup", "inputPath");
-    string simulationConfigFile = inputPath + "/" + params_->get("simulation", "simulationConfigFile");
     boost::shared_ptr<ScenarioSimMarketParameters> simMarketData(new ScenarioSimMarketParameters);
-    simMarketData->fromFile(simulationConfigFile);
+    if (params_->get("simulation", "simulationConfigFile") != "") {
+        string inputPath = params_->get("setup", "inputPath");
+        string simulationConfigFile = inputPath + "/" + params_->get("simulation", "simulationConfigFile");
+        simMarketData->fromFile(simulationConfigFile);
+    } else if (configXMLs_.find("simulation") != configXMLs_.end()) {
+        // in case todaysmarket doesn't come from file, try from memory...
+        XMLDocument simConfigXML = XMLDocument();
+        simConfigXML.fromXMLString(configXMLs_.find("simulation")->second.c_str());
+        simMarketData->fromXML(simConfigXML.getFirstNode(""));
+    } else {
+        WLOG("No sim market parameters loaded");
+    }
     return simMarketData;
 }
 
 boost::shared_ptr<ScenarioGeneratorData> OREApp::getScenarioGeneratorData() {
-    string inputPath = params_->get("setup", "inputPath");
-    string simulationConfigFile = inputPath + "/" + params_->get("simulation", "simulationConfigFile");
     boost::shared_ptr<ScenarioGeneratorData> sgd(new ScenarioGeneratorData);
-    sgd->fromFile(simulationConfigFile);
+    if (params_->get("simulation", "simulationConfigFile") != "") {
+        string inputPath = params_->get("setup", "inputPath");
+        string simulationConfigFile = inputPath + "/" + params_->get("simulation", "simulationConfigFile");
+        sgd->fromFile(simulationConfigFile);
+    } else if (configXMLs_.find("simulation") != configXMLs_.end()) {
+        // in case todaysmarket doesn't come from file, try from memory...
+        XMLDocument simConfigXML = XMLDocument();
+        simConfigXML.fromXMLString(configXMLs_.find("simulation")->second.c_str());
+        sgd->fromXML(simConfigXML.getFirstNode(""));
+    } else {
+        WLOG("No scenario generator market parameters loaded");
+    }
     return sgd;
 }
+
 boost::shared_ptr<ScenarioGenerator>
 OREApp::buildScenarioGenerator(boost::shared_ptr<Market> market,
                                boost::shared_ptr<ScenarioSimMarketParameters> simMarketData,
                                boost::shared_ptr<ScenarioGeneratorData> sgd) {
     LOG("Build Simulation Model");
-    string inputPath = params_->get("setup", "inputPath");
-    string simulationConfigFile = inputPath + "/" + params_->get("simulation", "simulationConfigFile");
-    LOG("Load simulation model data from file: " << simulationConfigFile);
     boost::shared_ptr<CrossAssetModelData> modelData = boost::make_shared<CrossAssetModelData>();
-    modelData->fromFile(simulationConfigFile);
+    if (params_->get("simulation", "simulationConfigFile") != "") {
+        string inputPath = params_->get("setup", "inputPath");
+        string simulationConfigFile = inputPath + "/" + params_->get("simulation", "simulationConfigFile");
+        LOG("Load simulation model data from file: " << simulationConfigFile);
+        modelData->fromFile(simulationConfigFile);
+    } else if (configXMLs_.find("simulation") != configXMLs_.end()) {
+        // in case todaysmarket doesn't come from file, try from memory...
+        XMLDocument simConfigXML = XMLDocument();
+        simConfigXML.fromXMLString(configXMLs_.find("simulation")->second.c_str());
+        modelData->fromXML(simConfigXML.getFirstNode(""));
+    } else {
+        WLOG("No simulation model loaded");
+    }
+
     string lgmCalibrationMarketStr = Market::defaultConfiguration;
     if (params_->has("markets", "lgmcalibration"))
         lgmCalibrationMarketStr = params_->get("markets", "lgmcalibration");
@@ -477,24 +534,55 @@ void OREApp::sensiInputInitialize(boost::shared_ptr<ScenarioSimMarketParameters>
 
     // We reset this here because the date grid building below depends on it.
     Settings::instance().evaluationDate() = asof_;
-
-    LOG("Get Simulation Market Parameters");
     string inputPath = params_->get("setup", "inputPath");
-    string marketConfigFile = inputPath + "/" + params_->get("sensitivity", "marketConfigFile");
-    simMarketData->fromFile(marketConfigFile);
+
+    LOG("Get Sensitivity Market Parameters");
+    if (params_->get("sensitivity", "marketConfigFile") != "") {
+        string marketConfigFile = inputPath + "/" + params_->get("sensitivity", "marketConfigFile");
+        simMarketData->fromFile(marketConfigFile);
+    } else if (configXMLs_.find("sensitivityMarketConfig") != configXMLs_.end()) {
+        // in case sensitivity marketConfig doesn't come from file, try from memory...
+        XMLDocument marketConfigXML = XMLDocument();
+        marketConfigXML.fromXMLString(configXMLs_.find("sensitivityMarketConfig")->second.c_str());
+        simMarketData->fromXML(marketConfigXML.getFirstNode(""));
+    } else {
+        WLOG("no Sensitivity Market Parameters loaded for sensitivity analysis");
+    }
 
     LOG("Get Sensitivity Parameters");
-    string sensitivityConfigFile = inputPath + "/" + params_->get("sensitivity", "sensitivityConfigFile");
-    sensiData->fromFile(sensitivityConfigFile);
+    if (params_->get("sensitivity", "sensitivityConfigFile") != "") {
+        string sensitivityConfigFile = inputPath + "/" + params_->get("sensitivity", "sensitivityConfigFile");
+        sensiData->fromFile(sensitivityConfigFile);
+    } else if (configXMLs_.find("sensitivityConfig") != configXMLs_.end()) {
+        XMLDocument configXML = XMLDocument();
+        configXML.fromXMLString(configXMLs_.find("sensitivityConfig")->second.c_str());
+        sensiData->fromXML(configXML.getFirstNode(""));
+    } else {
+        WLOG("no Sensitivity Parameters loaded for sensitivity analysis");
+    }
 
-    LOG("Get Engine Data");
-    string sensiPricingEnginesFile = inputPath + "/" + params_->get("sensitivity", "pricingEnginesFile");
-    engineData->fromFile(sensiPricingEnginesFile);
+    LOG("Get Sensitivity Engine Data");
+    if (params_->get("sensitivity", "pricingEnginesFile") != "") {
+        string sensiPricingEnginesFile = inputPath + "/" + params_->get("sensitivity", "pricingEnginesFile");
+        engineData->fromFile(sensiPricingEnginesFile);
+    } else if (configXMLs_.find("sensitivityPricingEngines") != configXMLs_.end()) {
+        XMLDocument pricingEngineXML = XMLDocument();
+        pricingEngineXML.fromXMLString(configXMLs_.find("sensitivityPricingEngines")->second.c_str());
+        engineData->fromXML(pricingEngineXML.getFirstNode(""));
+    } else {
+        WLOG("no Sensitivity Engine Data loaded for sensitivity analysis");
+    }
 
-    LOG("Get Portfolio");
-    string portfolioFile = inputPath + "/" + params_->get("setup", "portfolioFile");
-    // Just load here. We build the portfolio in SensitivityAnalysis, after building SimMarket.
-    sensiPortfolio->load(portfolioFile, buildTradeFactory());
+    LOG("Get Sensitivity Portfolio");
+    if (params_->get("setup", "portfolioFile") != "") {
+        string portfolioFile = inputPath + "/" + params_->get("setup", "portfolioFile");
+        // Just load here. We build the portfolio in SensitivityAnalysis, after building SimMarket.
+        sensiPortfolio->load(portfolioFile, buildTradeFactory());
+    } else if (configXMLs_.find("portfolio") != configXMLs_.end()) {
+        sensiPortfolio->loadFromXMLString(configXMLs_.find("portfolio")->second.c_str(), buildTradeFactory());
+    } else {
+        WLOG("no portfolio loaded for sensitivity analysis");
+    }
 
     LOG("Build Sensitivity Analysis");
     marketConfiguration = params_->get("markets", "pricing");
@@ -524,28 +612,58 @@ void OREApp::runStressTest() {
     out_ << setw(tab_) << left << "Stress Test Report... " << flush;
     // We reset this here because the date grid building below depends on it.
     Settings::instance().evaluationDate() = asof_;
+    boost::shared_ptr<ScenarioSimMarketParameters> simMarketData(new ScenarioSimMarketParameters);
+    string inputPath = params_->get("setup", "inputPath");
 
     LOG("Get Simulation Market Parameters");
-    string inputPath = params_->get("setup", "inputPath");
-    string marketConfigFile = inputPath + "/" + params_->get("stress", "marketConfigFile");
-    boost::shared_ptr<ScenarioSimMarketParameters> simMarketData(new ScenarioSimMarketParameters);
-    simMarketData->fromFile(marketConfigFile);
+    if (params_->get("stress", "marketConfigFile") != "") {
+        string marketConfigFile = inputPath + "/" + params_->get("stress", "marketConfigFile");
+        simMarketData->fromFile(marketConfigFile);
+    } else if (configXMLs_.find("stressMarketConfig") != configXMLs_.end()) {
+        // in case sensitivity marketConfig doesn't come from file, try from memory...
+        XMLDocument marketConfigXML = XMLDocument();
+        marketConfigXML.fromXMLString(configXMLs_.find("stressMarketConfig")->second.c_str());
+        simMarketData->fromXML(marketConfigXML.getFirstNode(""));
+    } else {
+        WLOG("no Market Parameters loaded for stresstest analysis");
+    }
 
     LOG("Get Stress Test Parameters");
-    string stressConfigFile = inputPath + "/" + params_->get("stress", "stressConfigFile");
     boost::shared_ptr<StressTestScenarioData> stressData(new StressTestScenarioData);
-    stressData->fromFile(stressConfigFile);
+    if (params_->get("stress", "stressConfigFile") != "") {
+        string stressConfigFile = inputPath + "/" + params_->get("stress", "stressConfigFile");
+        stressData->fromFile(stressConfigFile);
+    } else if (configXMLs_.find("stressConfig") != configXMLs_.end()) {
+        XMLDocument configXML = XMLDocument();
+        configXML.fromXMLString(configXMLs_.find("stressConfig")->second.c_str());
+        stressData->fromXML(configXML.getFirstNode(""));
+    } else {
+        WLOG("no Stress Test Parameters loaded for stresstest analysis");
+    }
 
-    LOG("Get Engine Data");
-    string pricingEnginesFile = inputPath + "/" + params_->get("stress", "pricingEnginesFile");
+    LOG("Get Stress Test Engine Data");
     boost::shared_ptr<EngineData> engineData = boost::make_shared<EngineData>();
-    engineData->fromFile(pricingEnginesFile);
+    if (params_->get("sensitivity", "pricingEnginesFile") != "") {
+        string pricingEnginesFile = inputPath + "/" + params_->get("stress", "pricingEnginesFile");
+        engineData->fromFile(pricingEnginesFile);
+    } else if (configXMLs_.find("stressPricingEngines") != configXMLs_.end()) {
+        XMLDocument pricingEngineXML = XMLDocument();
+        pricingEngineXML.fromXMLString(configXMLs_.find("stressPricingEngines")->second.c_str());
+        engineData->fromXML(pricingEngineXML.getFirstNode(""));
+    } else {
+        WLOG("no Engine Data loaded for stresstest analysis");
+    }
 
-    LOG("Get Portfolio");
-    string portfolioFile = inputPath + "/" + params_->get("setup", "portfolioFile");
+    LOG("Get Stress Test Portfolio");
     boost::shared_ptr<Portfolio> portfolio = boost::make_shared<Portfolio>();
-    // Just load here. We build the portfolio in SensitivityAnalysis, after building SimMarket.
-    portfolio->load(portfolioFile);
+    if (params_->get("setup", "portfolioFile") != "") {
+        string portfolioFile = inputPath + "/" + params_->get("setup", "portfolioFile");
+        portfolio->load(portfolioFile);
+    } else if (configXMLs_.find("portfolio") != configXMLs_.end()) {
+         portfolio->loadFromXMLString(configXMLs_.find("portfolio")->second.c_str(), buildTradeFactory());
+    } else {
+        WLOG("no portfolio loaded for stresstest analysis");
+    }
 
     LOG("Build Stress Test");
     string marketConfiguration = params_->get("markets", "pricing");
@@ -623,12 +741,21 @@ void OREApp::writeBaseScenario() {
 
     LOG("Get Market Configuration");
     string marketConfiguration = params_->get("baseScenario", "marketConfiguration");
+    boost::shared_ptr<ScenarioSimMarketParameters> simMarketData(new ScenarioSimMarketParameters);
 
     LOG("Get Simulation Market Parameters");
-    string inputPath = params_->get("setup", "inputPath");
-    string marketConfigFile = inputPath + "/" + params_->get("baseScenario", "marketConfigFile");
-    boost::shared_ptr<ScenarioSimMarketParameters> simMarketData(new ScenarioSimMarketParameters);
-    simMarketData->fromFile(marketConfigFile);
+    if (params_->get("baseScenario", "marketConfigFile") != "") {
+        string inputPath = params_->get("setup", "inputPath");
+        string marketConfigFile = inputPath + "/" + params_->get("baseScenario", "marketConfigFile");
+        simMarketData->fromFile(marketConfigFile);
+    } else if (configXMLs_.find("baseMarketConfig") != configXMLs_.end()) {
+        // in case sensitivity marketConfig doesn't come from file, try from memory...
+        XMLDocument marketConfigXML = XMLDocument();
+        marketConfigXML.fromXMLString(configXMLs_.find("baseMarketConfig")->second.c_str());
+        simMarketData->fromXML(marketConfigXML.getFirstNode(""));
+    } else {
+        WLOG("no Market Parameters loaded for base scenario analysis");
+    }
 
     auto simMarket = boost::make_shared<ScenarioSimMarket>(market_, simMarketData, conventions_, marketConfiguration);
     boost::shared_ptr<Scenario> scenario = simMarket->baseScenario();
@@ -793,10 +920,18 @@ void OREApp::loadCube() {
 }
 
 boost::shared_ptr<NettingSetManager> OREApp::initNettingSetManager() {
-    string inputPath = params_->get("setup", "inputPath");
-    string csaFile = inputPath + "/" + params_->get("xva", "csaFile");
     boost::shared_ptr<NettingSetManager> netting = boost::make_shared<NettingSetManager>();
-    netting->fromFile(csaFile);
+    if (params_->get("xva", "csaFile") != "") {
+        string inputPath = params_->get("setup", "inputPath");
+        string csaFile = inputPath + "/" + params_->get("xva", "csaFile");
+        netting->fromFile(csaFile);
+    } else if (configXMLs_.find("netting") != configXMLs_.end()) {
+        XMLDocument nettingXML = XMLDocument();
+        nettingXML.fromXMLString(configXMLs_.find("netting")->second.c_str());
+        netting->fromXML(nettingXML.getFirstNode(""));
+    } else {
+        WLOG("no nettingset loaded");
+    }
     return netting;
 }
 
@@ -913,6 +1048,39 @@ void OREApp::writeDIMReport() {
     for (Size i = 0; i < dimOutputGridPoints.size(); ++i)
         reportVec.push_back(boost::make_shared<ore::data::CSVFileReport>(dimFiles2[i]));
     postProcess_->exportDimRegression(nettingSet, dimOutputGridPoints, reportVec);
+}
+
+int OREApp::setConfigXML(std::string configtype, std::string configXMLStr) {
+    configXMLs_[configtype] = configXMLStr;
+    // test the XML for general validity.
+    XMLDocument doc = XMLDocument();
+    try {
+        doc.fromXMLString(configXMLStr);
+    } catch (std::exception& e) {
+        ALOG("Error: " << e.what());
+        out_ << "Error: " << e.what() << endl;
+        return 1;
+    }
+    // special treatment for ore.xml (app params)
+    if (configtype == "ore") {
+        params_ = boost::make_shared<Parameters>();
+        try {
+            params_->fromXML(doc.getFirstNode("ORE"));
+            asof_ = parseDate(params_->get("setup", "asofDate"));
+            Settings::instance().evaluationDate() = asof_;
+        } catch (std::exception& e) {
+            ALOG("Error: " << e.what());
+            out_ << "Error: " << e.what() << endl;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int OREApp::runInMem() {
+    QL_REQUIRE(params_, "no parameters (ore XML String) have been set!");
+    //TODO: return results (in memory)
+    return OREApp::run();
 }
 } // namespace analytics
 } // namespace ore

@@ -52,6 +52,12 @@ public:
         asof_ = parseDate(params->get("setup", "asofDate"));
         Settings::instance().evaluationDate() = asof_;
     }
+    //TODO: redirect LOG output for DLL invocation...
+    OREApp(std::ostream& out = std::cout) : out_(out), cubeDepth_(0) {
+        tab_ = 40;
+        progressBarWidth_ = 72 - std::min<Size>(tab_, 67);
+    }
+
     virtual ~OREApp() {}
     //! generates XVA reports for a given portfolio and market
     int run();
@@ -122,6 +128,10 @@ public:
 
     //! write out additional reports
     virtual void writeAdditionalReports() {}
+    //! set configXML String parameter (instead of reading from File) for starting ORE in memory
+    int setConfigXML(std::string configtype, std::string configXMLStr);
+    //! start ORE in memory
+    int runInMem();
 
 protected:
     //! Initialize input parameters to the sensitivities analysis
@@ -144,7 +154,8 @@ protected:
 
     Size tab_, progressBarWidth_;
     Date asof_;
-    //! ORE Input parameters
+    //! ORE Input XML for in memory start
+    map<string, string> configXMLs_;
     boost::shared_ptr<Parameters> params_;
     std::ostream& out_;
     bool writeInitialReports_;
