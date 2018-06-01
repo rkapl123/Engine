@@ -12,9 +12,12 @@
 #include <ored/configuration/equityvolcurveconfig.hpp>
 #include <ored/configuration/fxvolcurveconfig.hpp>
 #include <ored/configuration/inflationcapfloorpricesurfaceconfig.hpp>
+#include <ored/configuration/inflationcapfloorvolcurveconfig.hpp>
 #include <ored/configuration/inflationcurveconfig.hpp>
 #include <ored/configuration/swaptionvolcurveconfig.hpp>
 #include <ored/configuration/yieldcurveconfig.hpp>
 #include <ored/configuration/securityconfig.hpp>
 #include <ored/configuration/fxspotconfig.hpp>
+#include <ored/configuration/commoditycurveconfig.hpp>
+#include <ored/configuration/commodityvolcurveconfig.hpp>
 

@@ -19,23 +19,27 @@
 #include <boost/make_shared.hpp>
 #include <ored/portfolio/builders/all.hpp>
 #include <ored/portfolio/enginefactory.hpp>
+#include <ored/portfolio/legbuilders.hpp>
 #include <ored/utilities/log.hpp>
 
 namespace ore {
 namespace data {
 
 EngineFactory::EngineFactory(const boost::shared_ptr<EngineData>& engineData, const boost::shared_ptr<Market>& market,
-                             const map<MarketContext, string>& configurations)
+                             const map<MarketContext, string>& configurations,
+                             const std::vector<boost::shared_ptr<EngineBuilder>> extraEngineBuilders,
+                             const std::vector<boost::shared_ptr<LegBuilder>> extraLegBuilders)
     : market_(market), engineData_(engineData), configurations_(configurations) {
     LOG("Building EngineFactory");
 
     addDefaultBuilders();
+    addExtraBuilders(extraEngineBuilders, extraLegBuilders);
 }
 
 void EngineFactory::registerBuilder(const boost::shared_ptr<EngineBuilder>& builder) {
     const string& modelName = builder->model();
     const string& engineName = builder->engine();
-    LOG("EngineFactory regisering builder for model:" << modelName << " and engine:" << engineName);
+    LOG("EngineFactory registering builder for model:" << modelName << " and engine:" << engineName);
     builders_[make_tuple(modelName, engineName, builder->tradeTypes())] = builder;
 }
 
@@ -65,6 +69,17 @@ boost::shared_ptr<EngineBuilder> EngineFactory::builder(const string& tradeType)
     return builder;
 }
 
+void EngineFactory::registerLegBuilder(const boost::shared_ptr<LegBuilder>& legBuilder) {
+    LOG("EngineFactory registering builder for leg type " << legBuilder->legType());
+    legBuilders_[legBuilder->legType()] = legBuilder;
+}
+
+boost::shared_ptr<LegBuilder> EngineFactory::legBuilder(const string& legType) {
+    auto it = legBuilders_.find(legType);
+    QL_REQUIRE(it != legBuilders_.end(), "No LegBuilder for " << legType);
+    return it->second;
+}
+
 Disposable<set<std::pair<string, boost::shared_ptr<ModelBuilder>>>> EngineFactory::modelBuilders() const {
     set<std::pair<string, boost::shared_ptr<ModelBuilder>>> res;
     for (auto const& b : builders_) {
@@ -86,9 +101,14 @@ void EngineFactory::addDefaultBuilders() {
 
     registerBuilder(boost::make_shared<CapFloorEngineBuilder>());
     registerBuilder(boost::make_shared<CapFlooredIborLegEngineBuilder>());
+    registerBuilder(boost::make_shared<CmsSpreadCouponPricerBuilder>());
+    registerBuilder(boost::make_shared<CmsSpread3CouponPricerBuilder>());
+
+    registerBuilder(boost::make_shared<YoYCapFloorEngineBuilder>());
 
     registerBuilder(boost::make_shared<EquityForwardEngineBuilder>());
     registerBuilder(boost::make_shared<EquityOptionEngineBuilder>());
+    registerBuilder(boost::make_shared<VarSwapEngineBuilder>());
 
     registerBuilder(boost::make_shared<BondDiscountingEngineBuilder>());
 
@@ -97,6 +117,33 @@ void EngineFactory::addDefaultBuilders() {
     registerBuilder(boost::make_shared<LinearTSRCmsCouponPricerBuilder>());
 
     registerBuilder(boost::make_shared<MidPointCdsEngineBuilder>());
+    registerBuilder(boost::make_shared<CommodityForwardEngineBuilder>());
+    registerBuilder(boost::make_shared<CommodityOptionEngineBuilder>());
+
+    registerLegBuilder(boost::make_shared<FixedLegBuilder>());
+    registerLegBuilder(boost::make_shared<FloatingLegBuilder>());
+    registerLegBuilder(boost::make_shared<CashflowLegBuilder>());
+    registerLegBuilder(boost::make_shared<CPILegBuilder>());
+    registerLegBuilder(boost::make_shared<YYLegBuilder>());
+    registerLegBuilder(boost::make_shared<CMSLegBuilder>());
+    registerLegBuilder(boost::make_shared<CMSSpreadLegBuilder>());
+    registerLegBuilder(boost::make_shared<CMSSpread3LegBuilder>());
+}
+
+
+void EngineFactory::addExtraBuilders(const std::vector<boost::shared_ptr<EngineBuilder>> extraEngineBuilders,
+    const std::vector<boost::shared_ptr<LegBuilder>> extraLegBuilders) {
+
+    if (extraEngineBuilders.size() > 0) {
+        LOG("adding " << extraEngineBuilders.size() << " extra engine builders");
+        for (auto eb : extraEngineBuilders)
+            registerBuilder(eb);
+    }
+    if (extraLegBuilders.size() > 0) {
+        LOG("adding " << extraLegBuilders.size() << " extra leg builders");
+        for (auto elb : extraLegBuilders)
+            registerLegBuilder(elb);
+    }
 }
 
 } // namespace data

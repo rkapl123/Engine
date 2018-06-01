@@ -50,10 +50,13 @@ public:
         CDSVolatility,
         Inflation,
         InflationCapFloorPrice,
+        InflationCapFloorVolatility,
         Equity,
         EquityVolatility,
         Security,
-        BaseCorrelation
+        BaseCorrelation,
+        Commodity,
+        CommodityVolatility
     };
     //! Default destructor
     virtual ~CurveSpec() {}
@@ -88,12 +91,18 @@ public:
             return "Inflation";
         case CurveType::InflationCapFloorPrice:
             return "InflationCapFloorPrice";
+        case CurveType::InflationCapFloorVolatility:
+            return "InflationCapFloorVolatility";
         case CurveType::Equity:
             return "Equity";
         case CurveType::EquityVolatility:
             return "EquityVolatility";
         case CurveType::BaseCorrelation:
             return "BaseCorrelation";
+        case CurveType::Commodity:
+            return "Commodity";
+        case CurveType::CommodityVolatility:
+            return "CommodityVolatility";
         default:
             return "N/A";
         }
@@ -354,6 +363,26 @@ private:
     string curveConfigID_;
 };
 
+//! Inflation cap floor volatility description
+/*! \ingroup curves
+*/
+class InflationCapFloorVolatilityCurveSpec : public CurveSpec {
+public:
+    InflationCapFloorVolatilityCurveSpec() {}
+    InflationCapFloorVolatilityCurveSpec(const string& index, const string& curveConfigID)
+        : index_(index), curveConfigID_(curveConfigID) {}
+
+    CurveType baseType() const { return CurveType::InflationCapFloorVolatility; }
+    const string& index() const { return index_; }
+    const string& curveConfigID() const { return curveConfigID_; }
+
+    string subName() const { return index() + "/" + curveConfigID(); }
+
+private:
+    string index_;
+    string curveConfigID_;
+};
+
 //! Equity curve description
 /*!  \ingroup curves
  */
@@ -422,5 +451,63 @@ public:
 protected:
     string securityID_;
 };
+
+//! Commodity curve description
+/*! \ingroup curves
+*/
+class CommodityCurveSpec : public CurveSpec {
+
+public:
+    //! \name Constructors
+    //@{
+    //! Default constructor
+    CommodityCurveSpec() {}
+
+    //! Detailed constructor
+    CommodityCurveSpec(const std::string& currency, const std::string& curveConfigId)
+        : currency_(currency), curveConfigId_(curveConfigId) {}
+    //@}
+
+    //! \name Inspectors
+    //@{
+    CurveType baseType() const { return CurveType::Commodity; }
+    const std::string& currency() const { return currency_; }
+    const std::string& curveConfigId() const { return curveConfigId_; }
+    std::string subName() const { return currency_ + "/" + curveConfigId_; }
+    //@}
+
+private:
+    std::string currency_;
+    std::string curveConfigId_;
+};
+
+//! Commodity volatility description
+/*! \ingroup curves
+*/
+class CommodityVolatilityCurveSpec : public CurveSpec {
+public:
+    //! \name Constructors
+    //@{
+    //! Default constructor
+    CommodityVolatilityCurveSpec() {}
+
+    //! Detailed constructor
+    CommodityVolatilityCurveSpec(const std::string& currency, const std::string& curveConfigId)
+        : currency_(currency), curveConfigId_(curveConfigId) {}
+    //@}
+
+    //! \name Inspectors
+    //@{
+    CurveType baseType() const { return CurveType::CommodityVolatility; }
+    const std::string& currency() const { return currency_; }
+    const std::string& curveConfigId() const { return curveConfigId_; }
+    std::string subName() const { return currency_ + "/" + curveConfigId_; }
+    //@}
+
+private:
+    std::string currency_;
+    std::string curveConfigId_;
+};
+
 } // namespace data
 } // namespace ore

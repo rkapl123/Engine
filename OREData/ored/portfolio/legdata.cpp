@@ -18,8 +18,10 @@
 
 #include <ored/portfolio/builders/capfloorediborleg.hpp>
 #include <ored/portfolio/builders/cms.hpp>
+#include <ored/portfolio/builders/cmsspread.hpp>
 #include <ored/portfolio/legdata.hpp>
 #include <ored/utilities/log.hpp>
+#include <ql/version.hpp>
 
 #include <boost/make_shared.hpp>
 #include <ql/cashflow.hpp>
@@ -32,14 +34,31 @@
 #include <ql/cashflows/simplecashflow.hpp>
 #include <ql/errors.hpp>
 #include <ql/experimental/coupons/strippedcapflooredcoupon.hpp>
+#include <ql/experimental/coupons/cmsspreadcoupon.hpp>
+#include <qle/cashflows/cmsspread3coupon.hpp>
 #include <qle/cashflows/averageonindexedcoupon.hpp>
 #include <qle/cashflows/averageonindexedcouponpricer.hpp>
 #include <qle/cashflows/floatingannuitycoupon.hpp>
+#include <qle/cashflows/couponpricer.hpp>
+//I'm guessing I'll need to wrap the bma coupon here...
+#include <ql/cashflows/averagebmacoupon.hpp>
+#include <qle/indexes/bmaindexwrapper.hpp>
 
 using namespace QuantLib;
 
 namespace ore {
 namespace data {
+
+namespace {
+void addChildrenWithOptionalAttributes(XMLDocument& doc, XMLNode* n, const string& names, const string& name,
+                                       const vector<Real>& values, const string& attrName,
+                                       const vector<string>& attrs) {
+    if (attrs.empty())
+        XMLUtils::addChildren(doc, n, names, name, values);
+    else
+        XMLUtils::addChildrenWithAttributes(doc, n, names, name, values, attrName, attrs);
+}
+} // namespace
 
 void CashflowData::fromXML(XMLNode* node) {
     XMLUtils::checkNode(node, legNodeName());
@@ -48,7 +67,7 @@ void CashflowData::fromXML(XMLNode* node) {
 
 XMLNode* CashflowData::toXML(XMLDocument& doc) {
     XMLNode* node = doc.allocNode(legNodeName());
-    XMLUtils::addChildrenWithAttributes(doc, node, "Cashflow", "Amount", amounts_, "Date", dates_);
+    addChildrenWithOptionalAttributes(doc, node, "Cashflow", "Amount", amounts_, "Date", dates_);
     return node;
 }
 void FixedLegData::fromXML(XMLNode* node) {
@@ -58,7 +77,7 @@ void FixedLegData::fromXML(XMLNode* node) {
 
 XMLNode* FixedLegData::toXML(XMLDocument& doc) {
     XMLNode* node = doc.allocNode(legNodeName());
-    XMLUtils::addChildrenWithAttributes(doc, node, "Rates", "Rate", rates_, "startDate", rateDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Rates", "Rate", rates_, "startDate", rateDates_);
     return node;
 }
 
@@ -92,13 +111,13 @@ void FloatingLegData::fromXML(XMLNode* node) {
 XMLNode* FloatingLegData::toXML(XMLDocument& doc) {
     XMLNode* node = doc.allocNode(legNodeName());
     XMLUtils::addChild(doc, node, "Index", index_);
-    XMLUtils::addChildren(doc, node, "Spreads", "Spread", spreads_);
     XMLUtils::addChild(doc, node, "IsInArrears", isInArrears_);
     XMLUtils::addChild(doc, node, "IsAveraged", isAveraged_);
-    XMLUtils::addChild(doc, node, "FixingDays", fixingDays_);
-    XMLUtils::addChildrenWithAttributes(doc, node, "Caps", "Cap", caps_, "startDate", capDates_);
-    XMLUtils::addChildrenWithAttributes(doc, node, "Floors", "Floor", floors_, "startDate", floorDates_);
-    XMLUtils::addChildrenWithAttributes(doc, node, "Gearings", "Gearing", gearings_, "startDate", gearingDates_);
+    XMLUtils::addChild(doc, node, "FixingDays", static_cast<int>(fixingDays_));
+    addChildrenWithOptionalAttributes(doc, node, "Caps", "Cap", caps_, "startDate", capDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Floors", "Floor", floors_, "startDate", floorDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Gearings", "Gearing", gearings_, "startDate", gearingDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Spreads", "Spread", spreads_, "startDate", spreadDates_);
     XMLUtils::addChild(doc, node, "NakedOption", nakedOption_);
     return node;
 }
@@ -120,7 +139,7 @@ void CPILegData::fromXML(XMLNode* node) {
 XMLNode* CPILegData::toXML(XMLDocument& doc) {
     XMLNode* node = doc.allocNode(legNodeName());
     XMLUtils::addChild(doc, node, "Index", index_);
-    XMLUtils::addChildrenWithAttributes(doc, node, "Rates", "Rate", rates_, "startDate", rateDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Rates", "Rate", rates_, "startDate", rateDates_);
     XMLUtils::addChild(doc, node, "BaseCPI", baseCPI_);
     XMLUtils::addChild(doc, node, "ObservationLag", observationLag_);
     XMLUtils::addChild(doc, node, "Interpolated", interpolated_);
@@ -144,20 +163,20 @@ XMLNode* YoYLegData::toXML(XMLDocument& doc) {
     XMLUtils::addChild(doc, node, "Index", index_);
     XMLUtils::addChild(doc, node, "ObservationLag", observationLag_);
     XMLUtils::addChild(doc, node, "FixingDays", static_cast<int>(fixingDays_));
-    XMLUtils::addChildrenWithAttributes(doc, node, "Gearings", "Gearing", gearings_, "startDate", gearingDates_);
-    XMLUtils::addChildrenWithAttributes(doc, node, "Spreads", "Spread", spreads_, "startDate", spreadDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Gearings", "Gearing", gearings_, "startDate", gearingDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Spreads", "Spread", spreads_, "startDate", spreadDates_);
     return node;
 }
 
 XMLNode* CMSLegData::toXML(XMLDocument& doc) {
     XMLNode* node = doc.allocNode(legNodeName());
     XMLUtils::addChild(doc, node, "Index", swapIndex_);
-    XMLUtils::addChildren(doc, node, "Spreads", "Spread", spreads_);
     XMLUtils::addChild(doc, node, "IsInArrears", isInArrears_);
     XMLUtils::addChild(doc, node, "FixingDays", fixingDays_);
-    XMLUtils::addChildrenWithAttributes(doc, node, "Caps", "Cap", caps_, "startDate", capDates_);
-    XMLUtils::addChildrenWithAttributes(doc, node, "Floors", "Floor", floors_, "startDate", floorDates_);
-    XMLUtils::addChildrenWithAttributes(doc, node, "Gearings", "Gearing", gearings_, "startDate", gearingDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Caps", "Cap", caps_, "startDate", capDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Floors", "Floor", floors_, "startDate", floorDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Gearings", "Gearing", gearings_, "startDate", gearingDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Spreads", "Spread", spreads_, "startDate", spreadDates_);
     XMLUtils::addChild(doc, node, "NakedOption", nakedOption_);
     return node;
 }
@@ -184,6 +203,78 @@ void CMSLegData::fromXML(XMLNode* node) {
         nakedOption_ = false;
 }
 
+XMLNode* CMSSpreadLegData::toXML(XMLDocument& doc) {
+    XMLNode* node = doc.allocNode(legNodeName());
+    XMLUtils::addChild(doc, node, "Index1", swapIndex1_);
+    XMLUtils::addChild(doc, node, "Index2", swapIndex2_);
+    XMLUtils::addChild(doc, node, "IsInArrears", isInArrears_);
+    XMLUtils::addChild(doc, node, "FixingDays", fixingDays_);
+    addChildrenWithOptionalAttributes(doc, node, "Caps", "Cap", caps_, "startDate", capDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Floors", "Floor", floors_, "startDate", floorDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Gearings", "Gearing", gearings_, "startDate", gearingDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Spreads", "Spread", spreads_, "startDate", spreadDates_);
+    XMLUtils::addChild(doc, node, "NakedOption", nakedOption_);
+    return node;
+}
+
+void CMSSpreadLegData::fromXML(XMLNode* node) {
+    XMLUtils::checkNode(node, legNodeName());
+    swapIndex1_ = XMLUtils::getChildValue(node, "Index1", true);
+    swapIndex2_ = XMLUtils::getChildValue(node, "Index2", true);
+    spreads_ =
+        XMLUtils::getChildrenValuesAsDoublesWithAttributes(node, "Spreads", "Spread", "startDate", spreadDates_, true);
+    // These are all optional
+    XMLNode* arrNode = XMLUtils::getChildNode(node, "IsInArrears");
+    if (arrNode)
+        isInArrears_ = XMLUtils::getChildValueAsBool(node, "IsInArrears", true);
+    else
+        isInArrears_ = false;                                       // default to fixing-in-advance
+    fixingDays_ = XMLUtils::getChildValueAsInt(node, "FixingDays"); // defaults to 0
+    caps_ = XMLUtils::getChildrenValuesAsDoublesWithAttributes(node, "Caps", "Cap", "startDate", capDates_);
+    floors_ = XMLUtils::getChildrenValuesAsDoublesWithAttributes(node, "Floors", "Floor", "startDate", floorDates_);
+    gearings_ =
+        XMLUtils::getChildrenValuesAsDoublesWithAttributes(node, "Gearings", "Gearing", "startDate", gearingDates_);
+    if (XMLUtils::getChildNode(node, "NakedOption"))
+        nakedOption_ = XMLUtils::getChildValueAsBool(node, "NakedOption", false);
+    else
+        nakedOption_ = false;
+}
+
+XMLNode* CMSSpread3LegData::toXML(XMLDocument& doc) {
+    XMLNode* node = doc.allocNode(legNodeName());
+    XMLUtils::addChild(doc, node, "Index1", swapIndex1_);
+    XMLUtils::addChild(doc, node, "Index2", swapIndex2_);
+    XMLUtils::addChild(doc, node, "Index3", swapIndex3_);
+    XMLUtils::addChild(doc, node, "IsInArrears", isInArrears_);
+    XMLUtils::addChild(doc, node, "FixingDays", fixingDays_);
+    addChildrenWithOptionalAttributes(doc, node, "Gearings", "Gearing", gearings_, "startDate", gearingDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Spreads", "Spread", spreads_, "startDate", spreadDates_);
+    XMLUtils::addChild(doc, node, "NakedOption", nakedOption_);
+    return node;
+}
+
+void CMSSpread3LegData::fromXML(XMLNode* node) {
+    XMLUtils::checkNode(node, legNodeName());
+    swapIndex1_ = XMLUtils::getChildValue(node, "Index1", true);
+    swapIndex2_ = XMLUtils::getChildValue(node, "Index2", true);
+    swapIndex3_ = XMLUtils::getChildValue(node, "Index3", true);
+    spreads_ =
+        XMLUtils::getChildrenValuesAsDoublesWithAttributes(node, "Spreads", "Spread", "startDate", spreadDates_, true);
+    // These are all optional
+    XMLNode* arrNode = XMLUtils::getChildNode(node, "IsInArrears");
+    if (arrNode)
+        isInArrears_ = XMLUtils::getChildValueAsBool(node, "IsInArrears", true);
+    else
+        isInArrears_ = false;                                       // default to fixing-in-advance
+    fixingDays_ = XMLUtils::getChildValueAsInt(node, "FixingDays"); // defaults to 0
+    gearings_ =
+        XMLUtils::getChildrenValuesAsDoublesWithAttributes(node, "Gearings", "Gearing", "startDate", gearingDates_);
+    if (XMLUtils::getChildNode(node, "NakedOption"))
+        nakedOption_ = XMLUtils::getChildValueAsBool(node, "NakedOption", false);
+    else
+        nakedOption_ = false;
+}
+
 void AmortizationData::fromXML(XMLNode* node) {
     XMLUtils::checkNode(node, "AmortizationData");
     type_ = XMLUtils::getChildValue(node, "Type");
@@ -200,7 +291,8 @@ XMLNode* AmortizationData::toXML(XMLDocument& doc) {
     XMLUtils::addChild(doc, node, "Type", type_);
     XMLUtils::addChild(doc, node, "Value", value_);
     XMLUtils::addChild(doc, node, "StartDate", startDate_);
-    XMLUtils::addChild(doc, node, "EndDate", startDate_);
+    if(endDate_ != "")
+        XMLUtils::addChild(doc, node, "EndDate", endDate_);
     if (frequency_ != "")
         XMLUtils::addChild(doc, node, "Frequency", frequency_);
     XMLUtils::addChild(doc, node, "Underflow", underflow_);
@@ -212,14 +304,15 @@ LegData::LegData(const boost::shared_ptr<LegAdditionalData>& concreteLegData, bo
                  const std::vector<string>& notionalDates, const string& paymentConvention,
                  const bool notionalInitialExchange, const bool notionalFinalExchange,
                  const bool notionalAmortizingExchange, const bool isNotResetXCCY, const string& foreignCurrency,
-                 const double foreignAmount, const string& fxIndex, int fixingDays,
+                 const double foreignAmount, const string& fxIndex, int fixingDays, const string& fixingCalendar,
                  const std::vector<AmortizationData>& amortizationData)
     : concreteLegData_(concreteLegData), isPayer_(isPayer), currency_(currency), schedule_(scheduleData),
       dayCounter_(dayCounter), notionals_(notionals), notionalDates_(notionalDates),
       paymentConvention_(paymentConvention), notionalInitialExchange_(notionalInitialExchange),
       notionalFinalExchange_(notionalFinalExchange), notionalAmortizingExchange_(notionalAmortizingExchange),
       isNotResetXCCY_(isNotResetXCCY), foreignCurrency_(foreignCurrency), foreignAmount_(foreignAmount),
-      fxIndex_(fxIndex), fixingDays_(fixingDays), amortizationData_(amortizationData) {}
+      fxIndex_(fxIndex), fixingDays_(fixingDays), fixingCalendar_(fixingCalendar), amortizationData_(amortizationData) {
+}
 
 void LegData::fromXML(XMLNode* node) {
     XMLUtils::checkNode(node, "LegData");
@@ -244,6 +337,7 @@ void LegData::fromXML(XMLNode* node) {
             foreignAmount_ = XMLUtils::getChildValueAsDouble(fxResetNode, "ForeignAmount");
             fxIndex_ = XMLUtils::getChildValue(fxResetNode, "FXIndex");
             fixingDays_ = XMLUtils::getChildValueAsInt(fxResetNode, "FixingDays");
+            fixingCalendar_ = XMLUtils::getChildValue(fxResetNode, "FixingCalendar"); // may be empty string
             // TODO add schedule
         }
         XMLNode* exchangeNode = XMLUtils::getChildNode(tmp, "Exchanges");
@@ -285,6 +379,10 @@ boost::shared_ptr<LegAdditionalData> LegData::initialiseConcreteLegData(const st
         return boost::make_shared<YoYLegData>();
     } else if (legType == "CMS") {
         return boost::make_shared<CMSLegData>();
+    } else if (legType == "CMSSpread") {
+        return boost::make_shared<CMSSpreadLegData>();
+    } else if (legType == "CMSSpread3") {
+        return boost::make_shared<CMSSpread3LegData>();
     } else {
         QL_FAIL("Unkown leg type " << legType);
     }
@@ -300,7 +398,8 @@ XMLNode* LegData::toXML(XMLDocument& doc) {
         XMLUtils::addChild(doc, node, "DayCounter", dayCounter_);
     if (paymentConvention_ != "")
         XMLUtils::addChild(doc, node, "PaymentConvention", paymentConvention_);
-    XMLUtils::addChildrenWithAttributes(doc, node, "Notionals", "Notional", notionals_, "startDate", notionalDates_);
+    addChildrenWithOptionalAttributes(doc, node, "Notionals", "Notional", notionals_, "startDate", notionalDates_);
+    XMLNode* notionalsNodePtr = XMLUtils::getChildNode(node, "Notionals");
 
     if (!isNotResetXCCY_) {
         XMLNode* resetNode = doc.allocNode("FXReset");
@@ -308,21 +407,26 @@ XMLNode* LegData::toXML(XMLDocument& doc) {
         XMLUtils::addChild(doc, resetNode, "ForeignAmount", foreignAmount_);
         XMLUtils::addChild(doc, resetNode, "FXIndex", fxIndex_);
         XMLUtils::addChild(doc, resetNode, "FixingDays", fixingDays_);
-        XMLUtils::appendNode(node, resetNode);
+        XMLUtils::addChild(doc, resetNode, "FixingCalendar", fixingCalendar_);
+        XMLUtils::appendNode(notionalsNodePtr, resetNode);
     }
 
     XMLNode* exchangeNode = doc.allocNode("Exchanges");
     XMLUtils::addChild(doc, exchangeNode, "NotionalInitialExchange", notionalInitialExchange_);
     XMLUtils::addChild(doc, exchangeNode, "NotionalFinalExchange", notionalFinalExchange_);
     XMLUtils::addChild(doc, exchangeNode, "NotionalAmortizingExchange", notionalAmortizingExchange_);
-    XMLUtils::appendNode(node, exchangeNode);
+    XMLUtils::appendNode(notionalsNodePtr, exchangeNode);
 
     XMLUtils::appendNode(node, schedule_.toXML(doc));
 
-    for (auto& amort : amortizationData_) {
-        if (amort.initialized()) {
-            XMLUtils::appendNode(node, amort.toXML(doc));
+    if (!amortizationData_.empty()) {
+        XMLNode* amortisationsParentNode = doc.allocNode("Amortizations");
+        for (auto& amort : amortizationData_) {
+            if (amort.initialized()) {
+                XMLUtils::appendNode(amortisationsParentNode, amort.toXML(doc));
+            }
         }
+        XMLUtils::appendNode(node, amortisationsParentNode);
     }
 
     XMLUtils::appendNode(node, concreteLegData_->toXML(doc));
@@ -549,6 +653,40 @@ Leg makeOISLeg(const LegData& data, const boost::shared_ptr<OvernightIndex>& ind
     }
 }
 
+Leg makeBMALeg(const LegData& data, const boost::shared_ptr<QuantExt::BMAIndexWrapper>& indexWrapper) {
+    boost::shared_ptr<FloatingLegData> floatData = boost::dynamic_pointer_cast<FloatingLegData>(data.concreteLegData());
+    QL_REQUIRE(floatData, "Wrong LegType, expected Floating, got " << data.legType());
+    boost::shared_ptr<BMAIndex> index = indexWrapper->bma();
+
+    if (floatData->caps().size() > 0 || floatData->floors().size() > 0)
+        QL_FAIL("Caps and floors are not supported for BMA legs");
+
+    Schedule schedule = makeSchedule(data.schedule());
+    DayCounter dc = parseDayCounter(data.dayCounter());
+    BusinessDayConvention bdc = parseBusinessDayConvention(data.paymentConvention());
+
+    vector<Real> notionals = buildScheduledVector(data.notionals(), data.notionalDates(), schedule);
+    vector<Real> spreads = buildScheduledVector(floatData->spreads(), floatData->spreadDates(), schedule);
+    vector<Real> gearings = buildScheduledVector(floatData->gearings(), floatData->gearingDates(), schedule);
+
+    applyAmortization(notionals, data, schedule);
+    // amortization type annuity is not allowed, check this
+    if (!data.amortizationData().empty()) {
+        AmortizationType amortizationType = parseAmortizationType(data.amortizationData().front().type());
+        QL_REQUIRE(amortizationType == AmortizationType::None,
+            "Amortization is not supported for BMA legs");
+    }
+
+    AverageBMALeg leg = AverageBMALeg(schedule, index)
+        .withNotionals(notionals)
+        .withSpreads(spreads)
+        .withPaymentDayCounter(dc)
+        .withPaymentAdjustment(bdc)
+        .withGearings(gearings);
+
+    return leg;
+}
+
 Leg makeNotionalLeg(const Leg& refLeg, const bool initNomFlow, const bool finalNomFlow, const bool amortNomFlow) {
 
     // Assumption - Cashflows on Input Leg are all coupons
@@ -703,6 +841,116 @@ Leg makeCMSLeg(const LegData& data, const boost::shared_ptr<QuantLib::SwapIndex>
 
     // build naked option leg if required
     if (cmsData->nakedOption()) {
+        tmpLeg = StrippedCappedFlooredCouponLeg(tmpLeg);
+    }
+    return tmpLeg;
+}
+
+Leg makeCMSSpreadLeg(const LegData& data, const boost::shared_ptr<QuantLib::SwapSpreadIndex>& swapSpreadIndex,
+                     const boost::shared_ptr<EngineFactory>& engineFactory, const bool attachPricer) {
+#if QL_HEX_VERSION < 0x011300f0
+    WLOG("The CMS Spread implementation in older QL versions has issues, consider upgrading to at least 1.13")
+#endif
+    boost::shared_ptr<CMSSpreadLegData> cmsSpreadData =
+        boost::dynamic_pointer_cast<CMSSpreadLegData>(data.concreteLegData());
+    QL_REQUIRE(cmsSpreadData, "Wrong LegType, expected CMSSpread, got " << data.legType());
+
+    Schedule schedule = makeSchedule(data.schedule());
+    DayCounter dc = parseDayCounter(data.dayCounter());
+    BusinessDayConvention bdc = parseBusinessDayConvention(data.paymentConvention());
+    vector<double> spreads =
+        ore::data::buildScheduledVector(cmsSpreadData->spreads(), cmsSpreadData->spreadDates(), schedule);
+    CmsSpreadLeg cmsSpreadLeg = CmsSpreadLeg(schedule, swapSpreadIndex)
+                                    .withNotionals(data.notionals())
+                                    .withSpreads(spreads)
+                                    .withPaymentDayCounter(dc)
+                                    .withPaymentAdjustment(bdc)
+                                    .withFixingDays(cmsSpreadData->fixingDays())
+                                    .inArrears(cmsSpreadData->isInArrears());
+
+    if (cmsSpreadData->gearings().size() > 0)
+        cmsSpreadLeg.withGearings(
+            buildScheduledVector(cmsSpreadData->gearings(), cmsSpreadData->gearingDates(), schedule));
+
+    if (cmsSpreadData->caps().size() > 0)
+        cmsSpreadLeg.withCaps(buildScheduledVector(cmsSpreadData->caps(), cmsSpreadData->capDates(), schedule));
+
+    if (cmsSpreadData->floors().size() > 0)
+        cmsSpreadLeg.withFloors(buildScheduledVector(cmsSpreadData->floors(), cmsSpreadData->floorDates(), schedule));
+
+    if (!attachPricer)
+        return cmsSpreadLeg;
+
+    // Get a coupon pricer for the leg
+    auto builder1 = engineFactory->builder("CMS");
+    QL_REQUIRE(builder1, "No CMS builder found for CmsSpreadLeg");
+    auto cmsBuilder = boost::dynamic_pointer_cast<CmsCouponPricerBuilder>(builder1);
+    auto cmsPricer = boost::dynamic_pointer_cast<CmsCouponPricer>(cmsBuilder->engine(swapSpreadIndex->currency()));
+    QL_REQUIRE(cmsPricer, "Expected CMS Pricer");
+    auto builder2 = engineFactory->builder("CMSSpread");
+    QL_REQUIRE(builder2, "No CMS Spread builder found for CmsSpreadLeg");
+    auto cmsSpreadBuilder = boost::dynamic_pointer_cast<CmsSpreadCouponPricerBuilder>(builder2);
+    auto cmsSpreadPricer = cmsSpreadBuilder->engine(swapSpreadIndex->currency(), cmsPricer);
+    QL_REQUIRE(cmsSpreadPricer, "Expected CMS Spread Pricer");
+
+    // Loop over the coupons in the leg and set pricer
+    Leg tmpLeg = cmsSpreadLeg;
+    QuantLib::setCouponPricer(tmpLeg, cmsSpreadPricer);
+
+    // build naked option leg if required
+    if (cmsSpreadData->nakedOption()) {
+        tmpLeg = StrippedCappedFlooredCouponLeg(tmpLeg);
+    }
+    return tmpLeg;
+}
+
+Leg makeCMSSpread3Leg(const LegData& data, const boost::shared_ptr<QuantExt::SwapSpread3Index>& swapSpreadIndex,
+    const boost::shared_ptr<EngineFactory>& engineFactory, const bool attachPricer) {
+#if QL_HEX_VERSION < 0x011300f0
+    WLOG("The CMS Spread implementation in older QL versions has issues, consider upgrading to at least 1.13")
+#endif
+        boost::shared_ptr<CMSSpread3LegData> cmsSpread3Data =
+        boost::dynamic_pointer_cast<CMSSpread3LegData>(data.concreteLegData());
+    QL_REQUIRE(cmsSpread3Data, "Wrong LegType, expected CMSSpread3, got " << data.legType());
+
+    Schedule schedule = makeSchedule(data.schedule());
+    DayCounter dc = parseDayCounter(data.dayCounter());
+    BusinessDayConvention bdc = parseBusinessDayConvention(data.paymentConvention());
+    vector<double> spreads =
+        ore::data::buildScheduledVector(cmsSpread3Data->spreads(), cmsSpread3Data->spreadDates(), schedule);
+    QuantExt::CmsSpread3Leg cmsSpreadLeg = QuantExt::CmsSpread3Leg(schedule, swapSpreadIndex)
+        .withNotionals(data.notionals())
+        .withSpreads(spreads)
+        .withPaymentDayCounter(dc)
+        .withPaymentAdjustment(bdc)
+        .withFixingDays(cmsSpread3Data->fixingDays())
+        .inArrears(cmsSpread3Data->isInArrears());
+
+    if (cmsSpread3Data->gearings().size() > 0)
+        cmsSpreadLeg.withGearings(
+            buildScheduledVector(cmsSpread3Data->gearings(), cmsSpread3Data->gearingDates(), schedule));
+
+    if (!attachPricer)
+        return cmsSpreadLeg;
+
+    // Get a coupon pricer for the leg
+    auto builder1 = engineFactory->builder("CMS");
+    QL_REQUIRE(builder1, "No CMS builder found for CmsSpreadLeg");
+    auto cmsBuilder = boost::dynamic_pointer_cast<CmsCouponPricerBuilder>(builder1);
+    auto cmsPricer = boost::dynamic_pointer_cast<CmsCouponPricer>(cmsBuilder->engine(swapSpreadIndex->currency()));
+    QL_REQUIRE(cmsPricer, "Expected CMS Pricer");
+    auto builder2 = engineFactory->builder("CMSSpread3");
+    QL_REQUIRE(builder2, "No CMS Spread 3 builder found for CmsSpreadLeg");
+    auto cmsSpreadBuilder = boost::dynamic_pointer_cast<CmsSpread3CouponPricerBuilder>(builder2);
+    auto cmsSpreadPricer = cmsSpreadBuilder->engine(swapSpreadIndex->currency(), cmsPricer);
+    QL_REQUIRE(cmsSpreadPricer, "Expected CMS Spread Pricer");
+
+    // Loop over the coupons in the leg and set pricer
+    Leg tmpLeg = cmsSpreadLeg;
+    QuantExt::setCouponPricer(tmpLeg, cmsSpreadPricer);
+
+    // build naked option leg if required
+    if (cmsSpread3Data->nakedOption()) {
         tmpLeg = StrippedCappedFlooredCouponLeg(tmpLeg);
     }
     return tmpLeg;

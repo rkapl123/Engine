@@ -40,7 +40,6 @@ using std::pair;
 using std::map;
 using boost::optional;
 using ore::data::XMLNode;
-using ore::data::XMLDocument;
 using QuantLib::AcyclicVisitor;
 using QuantLib::Real;
 
@@ -66,6 +65,7 @@ public:
         AverageOIS,
         TenorBasis,
         TenorBasisTwo,
+        BMABasis,
         FXForward,
         CrossCcyBasis
     };

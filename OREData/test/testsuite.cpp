@@ -56,6 +56,12 @@ using boost::unit_test::test_suite;
 #include "ccyswapwithresets.hpp"
 #include "cds.hpp"
 #include "cms.hpp"
+#include "commoditycurve.hpp"
+#include "commoditycurveconfig.hpp"
+#include "ored_commodityforward.hpp"
+#include "commodityoption.hpp"
+#include "commodityvolcurve.hpp"
+#include "commodityvolcurveconfig.hpp"
 #include "cpiswap.hpp"
 #include "crossassetmodeldata.hpp"
 #include "curveconfig.hpp"
@@ -73,6 +79,7 @@ using boost::unit_test::test_suite;
 #include "todaysmarket.hpp"
 #include "xmlmanipulation.hpp"
 #include "yieldcurve.hpp"
+#include "inflationcapfloor.hpp"
 
 namespace {
 
@@ -107,6 +114,7 @@ test_suite* init_unit_test_suite(int, char* []) {
 
     test->add(BOOST_TEST_CASE(startTimer));
 
+    test->add(testsuite::InflationCapFloorTest::suite());
     test->add(testsuite::FXSwapTest::suite());
     test->add(testsuite::FXOptionTest::suite());
     test->add(testsuite::CcySwapWithResetsTest::suite());
@@ -129,6 +137,12 @@ test_suite* init_unit_test_suite(int, char* []) {
     test->add(testsuite::PortfolioTest::suite());
     test->add(testsuite::CurveConfigTest::suite());
     test->add(testsuite::CreditDefaultSwapTest::suite());
+    test->add(testsuite::CommodityForwardTest::suite());
+    test->add(testsuite::CommodityCurveConfigTest::suite());
+    test->add(testsuite::CommodityCurveTest::suite());
+    test->add(testsuite::CommodityOptionTest::suite());
+    test->add(testsuite::CommodityVolatilityCurveConfigTest::suite());
+    test->add(testsuite::CommodityVolCurveTest::suite());
 
     test->add(BOOST_TEST_CASE(stopTimer));
 

@@ -33,6 +33,7 @@
 #include <ql/utilities/dataparsers.hpp>
 #include <ql/version.hpp>
 #include <qle/currencies/all.hpp>
+#include <qle/calendars/all.hpp>
 
 using namespace QuantLib;
 using namespace QuantExt;
@@ -107,6 +108,16 @@ Real parseReal(const string& s) {
     return atof(s.c_str());
 }
 
+bool tryParseReal(const string& s, QuantLib::Real& result) {
+    try {
+        result = std::stod(s);
+    } catch (...) {
+        result = Null<Real>();
+        return false;
+    }
+    return true;
+}
+
 Integer parseInteger(const string& s) {
     try {
         return io::to_integer(s);
@@ -143,11 +154,14 @@ Calendar parseCalendar(const string& s) {
                                       {"US settlement", UnitedStates(UnitedStates::Settlement)},
                                       {"US-GOV", UnitedStates(UnitedStates::GovernmentBond)},
                                       {"US-NYSE", UnitedStates(UnitedStates::NYSE)},
+                                      {"New York stock exchange", UnitedStates(UnitedStates::NYSE)},
+                                      {"US with Libor impact", UnitedStates(UnitedStates::LiborImpact)},
                                       {"US-NERC", UnitedStates(UnitedStates::NERC)},
                                       {"GB", UnitedKingdom()},
                                       {"GBP", UnitedKingdom()},
                                       {"UK", UnitedKingdom()},
                                       {"UK settlement", UnitedKingdom()},
+                                      {"London stock exchange", UnitedKingdom(UnitedKingdom::Exchange)},
                                       {"LNB", UnitedKingdom()},
                                       {"CA", Canada()},
                                       {"TRB", Canada()},
@@ -168,12 +182,14 @@ Calendar parseCalendar(const string& s) {
                                       {"SS", Sweden()},
                                       {"SEK", Sweden()},
                                       {"SEST", Sweden()},
+                                      {"Sweden", Sweden()},
                                       {"ARS", Argentina()},
                                       {"BRL", Brazil()},
                                       {"CNY", China()},
                                       {"CZK", CzechRepublic()},
                                       {"DKK", Denmark()},
                                       {"DEN", Denmark()},
+                                      {"Denmark", Denmark()},
                                       {"FIN", Finland()},
                                       {"HKD", HongKong()},
                                       {"ISK", Iceland()},
@@ -182,6 +198,7 @@ Calendar parseCalendar(const string& s) {
                                       {"MXN", Mexico()},
                                       {"NZD", NewZealand()},
                                       {"NOK", Norway()},
+                                      {"Norway", Norway()},
                                       {"PLN", Poland()},
                                       {"RUB", Russia()},
                                       {"SAR", SaudiArabia()},
@@ -193,16 +210,19 @@ Calendar parseCalendar(const string& s) {
                                       {"UAH", Ukraine()},
                                       {"HUF", Hungary()},
                                       {"GBLO", UnitedKingdom()},
+                                      {"CLP", Chile()},
+                                      {"THB", Thailand()},
+                                      {"COP", Colombia()},
+                                      {"PEN", Peru()},
+                                      {"MYR", Malaysia()},
+                                      {"PHP", Philippines()},
+                                      // city specific calendars
+                                      {"FRA", Germany(Germany::Settlement)},
                                       // fallback to TARGET for these emerging ccys
-                                      {"CLP", TARGET()},
                                       {"RON", TARGET()},
-                                      {"THB", TARGET()},
-                                      {"COP", TARGET()},
                                       {"ILS", TARGET()},
                                       {"KWD", TARGET()},
-                                      {"PEN", TARGET()},
                                       {"TND", TARGET()},
-                                      {"MYR", TARGET()},
                                       {"KZT", TARGET()},
                                       {"QAR", TARGET()},
                                       {"MXV", TARGET()},
@@ -212,7 +232,6 @@ Calendar parseCalendar(const string& s) {
                                       {"OMR", TARGET()},
                                       {"VND", TARGET()},
                                       {"AED", TARGET()},
-                                      {"PHP", TARGET()},
                                       {"NGN", TARGET()},
                                       {"MAD", TARGET()},
                                       // ISDA http://www.fpml.org/coding-scheme/business-center-7-15.xml
@@ -220,7 +239,8 @@ Calendar parseCalendar(const string& s) {
                                       {"BEBR", TARGET()}, // Belgium, Brussels not in QL
                                       {"WeekendsOnly", WeekendsOnly()},
                                       {"UNMAPPED", WeekendsOnly()},
-                                      {"NullCalendar", NullCalendar()}};
+                                      {"NullCalendar", NullCalendar()},
+                                      {"", NullCalendar()}};
 
     auto it = m.find(s);
     if (it != m.end()) {
@@ -317,7 +337,7 @@ DayCounter parseDayCounter(const string& s) {
                                         {"ACT/ACT.ISDA", ActualActual(ActualActual::ISDA)},
                                         {"Actual/Actual (ISDA)", ActualActual(ActualActual::ISDA)},
                                         {"ACT/ACT", ActualActual(ActualActual::ISDA)},
-                                        {"ACT29", ActualActual(ActualActual::ISDA)},
+                                        {"ACT29", ActualActual(ActualActual::AFB)},
                                         {"ACT", ActualActual(ActualActual::ISDA)},
                                         {"ActActISMA", ActualActual(ActualActual::ISMA)},
                                         {"Actual/Actual (ISMA)", ActualActual(ActualActual::ISMA)},

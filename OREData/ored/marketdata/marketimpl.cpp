@@ -24,11 +24,14 @@
 #include <ored/utilities/parsers.hpp>
 #include <qle/termstructures/blackinvertedvoltermstructure.hpp>
 
-using namespace QuantLib;
 using namespace std;
 using std::string;
 using std::map;
 using std::make_pair;
+
+using namespace QuantLib;
+
+using QuantExt::PriceTermStructure;
 
 namespace ore {
 namespace data {
@@ -149,6 +152,10 @@ Handle<OptionletVolatilityStructure> MarketImpl::capFloorVol(const string& key, 
     return lookup<Handle<OptionletVolatilityStructure>>(capFloorCurves_, key, configuration, "capfloor curve");
 }
 
+Handle<QuantExt::YoYOptionletVolatilitySurface> MarketImpl::yoyCapFloorVol(const string& key, const string& configuration) const {
+    return lookup<Handle<QuantExt::YoYOptionletVolatilitySurface>>(yoyCapFloorVolSurfaces_, key, configuration, "capfloor curve");
+}
+
 Handle<ZeroInflationIndex> MarketImpl::zeroInflationIndex(const string& indexName, const string& configuration) const {
     return lookup<Handle<ZeroInflationIndex>>(zeroInflationIndices_, indexName, configuration, "zero inflation index");
 }
@@ -157,9 +164,15 @@ Handle<YoYInflationIndex> MarketImpl::yoyInflationIndex(const string& indexName,
     return lookup<Handle<YoYInflationIndex>>(yoyInflationIndices_, indexName, configuration, "yoy inflation index");
 }
 
-Handle<CPICapFloorTermPriceSurface> MarketImpl::inflationCapFloorPriceSurface(const string& indexName,
-                                                                              const string& configuration) const {
-    return lookup<Handle<CPICapFloorTermPriceSurface>>(inflationCapFloorPriceSurfaces_, indexName, configuration,
+Handle<CPICapFloorTermPriceSurface> MarketImpl::cpiInflationCapFloorPriceSurface(const string& indexName,
+                                                                                 const string& configuration) const {
+    return lookup<Handle<CPICapFloorTermPriceSurface>>(cpiInflationCapFloorPriceSurfaces_, indexName, configuration,
+                                                       "inflation cap floor price surface");
+}
+
+Handle<YoYCapFloorTermPriceSurface> MarketImpl::yoyInflationCapFloorPriceSurface(const string& indexName,
+                                                                                 const string& configuration) const {
+    return lookup<Handle<YoYCapFloorTermPriceSurface>>(yoyInflationCapFloorPriceSurfaces_, indexName, configuration,
                                                        "inflation cap floor price surface");
 }
 
@@ -187,6 +200,18 @@ Handle<Quote> MarketImpl::securitySpread(const string& key, const string& config
 
 Handle<QuantExt::InflationIndexObserver> MarketImpl::baseCpis(const string& key, const string& configuration) const {
     return lookup<Handle<QuantExt::InflationIndexObserver>>(baseCpis_, key, configuration, "base CPI");
+}
+
+Handle<Quote> MarketImpl::commoditySpot(const string& commodityName, const string& configuration) const {
+    return lookup<Handle<Quote>>(commoditySpots_, commodityName, configuration, "commodity spot");
+}
+
+Handle<PriceTermStructure> MarketImpl::commodityPriceCurve(const string& commodityName, const string& configuration) const {
+    return lookup<Handle<PriceTermStructure>>(commodityCurves_, commodityName, configuration, "commodity price curve");
+}
+
+Handle<BlackVolTermStructure> MarketImpl::commodityVolatility(const string& commodityName, const string& configuration) const {
+    return lookup<Handle<BlackVolTermStructure>>(commodityVols_, commodityName, configuration, "commodity volatility");
 }
 
 void MarketImpl::addSwapIndex(const string& swapIndex, const string& discountIndex, const string& configuration) {
@@ -254,6 +279,10 @@ void MarketImpl::refresh(const string& configuration) {
             if (x.first.first == configuration || x.first.first == Market::defaultConfiguration)
                 it->second.insert(*x.second);
         }
+        for (auto& x : yoyCapFloorVolSurfaces_) {
+            if (x.first.first == configuration || x.first.first == Market::defaultConfiguration)
+                it->second.insert(*x.second);
+        }
         for (auto& x : fxVols_) {
             if (x.first.first == configuration || x.first.first == Market::defaultConfiguration)
                 it->second.insert(*x.second);
@@ -280,7 +309,11 @@ void MarketImpl::refresh(const string& configuration) {
                 it->second.insert(*x.second->yoyInflationTermStructure());
             }
         }
-        for (auto& x : inflationCapFloorPriceSurfaces_) {
+        for (auto& x : cpiInflationCapFloorPriceSurfaces_) {
+            if (x.first.first == configuration || x.first.first == Market::defaultConfiguration)
+                it->second.insert(*x.second);
+        }
+        for (auto& x : yoyInflationCapFloorPriceSurfaces_) {
             if (x.first.first == configuration || x.first.first == Market::defaultConfiguration)
                 it->second.insert(*x.second);
         }
@@ -289,6 +322,14 @@ void MarketImpl::refresh(const string& configuration) {
                 it->second.insert(*x.second);
         }
         for (auto& x : baseCpis_) {
+            if (x.first.first == configuration || x.first.first == Market::defaultConfiguration)
+                it->second.insert(*x.second);
+        }
+        for (auto& x : commodityCurves_) {
+            if (x.first.first == configuration || x.first.first == Market::defaultConfiguration)
+                it->second.insert(*x.second);
+        }
+        for (auto& x : commodityVols_) {
             if (x.first.first == configuration || x.first.first == Market::defaultConfiguration)
                 it->second.insert(*x.second);
         }

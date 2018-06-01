@@ -30,6 +30,7 @@
 
 #include <qle/cashflows/averageonindexedcouponpricer.hpp>
 #include <qle/cashflows/subperiodscouponpricer.hpp>
+#include <qle/cashflows/cmsspread3coupon.hpp>
 
 using namespace QuantLib;
 

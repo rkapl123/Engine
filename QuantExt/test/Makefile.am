@@ -26,8 +26,16 @@ QLE_TESTS = \
 	swaptionvolconstantspread.hpp swaptionvolconstantspread.cpp \
 	fxvolsmile.hpp fxvolsmile.cpp \
 	payment.hpp payment.cpp \
-	deltagammavar.hpp deltagammavar.cpp
-	utilities.hpp
+	deltagammavar.hpp deltagammavar.cpp \
+	pricecurve.hpp pricecurve.cpp \
+	commodityforward.hpp commodityforward.cpp \
+	discountingcommodityforwardengine.hpp discountingcommodityforwardengine.cpp \
+	pricetermstructureadapter.hpp pricetermstructureadapter.cpp \
+	bonds.hpp bonds.cpp \
+	interpolatedyoycapfloortermpricesurface.hpp interpolatedyoycapfloortermpricesurface.cpp \
+	qle_calendars.hpp qle_calendars.cpp \
+	utilities.hpp \
+    generalisedreplicatingvarianceswapengine.hpp generalisedreplicatingvarianceswapengine.cpp
 
 dist-hook:
 	mkdir -p $(distdir)/build

@@ -49,6 +49,8 @@ namespace ore {
 namespace data {
 
 class Trade;
+class LegBuilder;
+class LegData;
 
 /*! Market configuration contexts. Note that there is only one pricing context.
   If several are needed (for different trade types, different collateral
@@ -167,7 +169,11 @@ public:
         //! The market that is passed to each builder
         const boost::shared_ptr<Market>& market,
         //! The market configurations that are passed to each builder
-        const map<MarketContext, string>& configurations = std::map<MarketContext, string>());
+        const map<MarketContext, string>& configurations = std::map<MarketContext, string>(),
+        //! additional engine builders
+        const std::vector<boost::shared_ptr<EngineBuilder>> extraEngineBuilders = {},
+        //! additional leg builders
+        const std::vector<boost::shared_ptr<LegBuilder>> extraLegBuilders = {});
 
     //! Return the market used by this EngineFactory
     const boost::shared_ptr<Market>& market() const { return market_; };
@@ -185,11 +191,23 @@ public:
      */
     boost::shared_ptr<EngineBuilder> builder(const string& tradeType);
 
-    //! Add a set of default builders
+    //! Register a leg builder with the factory
+    void registerLegBuilder(const boost::shared_ptr<LegBuilder>& legBuilder);
+
+    //! Get a leg builder by leg type
+    boost::shared_ptr<LegBuilder> legBuilder(const string& legType);
+
+    //! Add a set of default engine and leg builders
     void addDefaultBuilders();
+    //! Add a set of default engine and leg builders
+    void addExtraBuilders(const std::vector<boost::shared_ptr<EngineBuilder>> extraEngineBuilders,
+                          const std::vector<boost::shared_ptr<LegBuilder>> extraLegBuilders);
 
     //! Clear all builders
-    void clear() { builders_.clear(); }
+    void clear() {
+        builders_.clear();
+        legBuilders_.clear();
+    }
 
     //! return model builders
     Disposable<set<std::pair<string, boost::shared_ptr<ModelBuilder>>>> modelBuilders() const;
@@ -199,6 +217,20 @@ private:
     boost::shared_ptr<EngineData> engineData_;
     map<MarketContext, string> configurations_;
     map<tuple<string, string, set<string>>, boost::shared_ptr<EngineBuilder>> builders_;
+    map<string, boost::shared_ptr<LegBuilder>> legBuilders_;
+};
+
+//! Leg builder
+class LegBuilder {
+public:
+    LegBuilder(const string& legType) : legType_(legType) {}
+    virtual ~LegBuilder() {}
+    virtual Leg buildLeg(const LegData& data, const boost::shared_ptr<EngineFactory>&,
+                         const string& configuration) const = 0;
+    const string& legType() const { return legType_; }
+
+private:
+    const string legType_;
 };
 
 } // namespace data

@@ -260,6 +260,66 @@ void SensitivityScenarioData::fromXML(XMLNode* root) {
         }
     }
 
+    LOG("Get commodity spot sensitivity parameters");
+    XMLNode* csNode = XMLUtils::getChildNode(node, "CommoditySpots");
+    if (csNode) {
+        for (XMLNode* child = XMLUtils::getChildNode(csNode, "CommoditySpot"); child;
+            child = XMLUtils::getNextSibling(child)) {
+            string name = XMLUtils::getAttribute(child, "name");
+            SpotShiftData data;
+            shiftDataFromXML(child, data);
+            commodityShiftData_[name] = data;
+            commodityNames_.insert(name);
+        }
+    }
+
+    LOG("Get commodity curve sensitivity parameters");
+    XMLNode* ccNode = XMLUtils::getChildNode(node, "CommodityCurves");
+    if (ccNode) {
+        for (XMLNode* child = XMLUtils::getChildNode(ccNode, "CommodityCurve"); child;
+            child = XMLUtils::getNextSibling(child)) {
+            string name = XMLUtils::getAttribute(child, "name");
+            commodityCurrencies_[name] = XMLUtils::getChildValue(child, "Currency", true);
+            CurveShiftData data;
+            curveShiftDataFromXML(child, data);
+            commodityCurveShiftData_[name] = boost::make_shared<CurveShiftData>(data);
+            commodityNames_.insert(name);
+        }
+    }
+
+    LOG("Get commodity volatility sensitivity parameters");
+    XMLNode* cvNode = XMLUtils::getChildNode(node, "CommodityVolatilities");
+    if (cvNode) {
+        for (XMLNode* child = XMLUtils::getChildNode(cvNode, "CommodityVolatility"); child;
+            child = XMLUtils::getNextSibling(child)) {
+            string name = XMLUtils::getAttribute(child, "name");
+            VolShiftData data;
+            volShiftDataFromXML(child, data);
+            // If data has one strike and it is 0.0, it needs to be overwritten for commodity volatilities
+            // Commodity volatility surface in simulation market is defined in terms of spot moneyness e.g.
+            // strike sets like {0.99 * S(0), 1.00 * S(0), 1.01 * S(0)} => we need to define sensitivity 
+            // data in the same way
+            if (data.shiftStrikes.size() == 1 && close_enough(data.shiftStrikes[0], 0.0)) {
+                data.shiftStrikes[0] = 1.0;
+            }
+            commodityVolShiftData_[name] = data;
+            commodityVolNames_.insert(name);
+        }
+    }
+
+    LOG("Get security spread sensitivity parameters");
+    XMLNode* securitySpreads = XMLUtils::getChildNode(node, "SecuritySpreads");
+    if (securitySpreads) {
+        for (XMLNode* child = XMLUtils::getChildNode(securitySpreads, "SecuritySpread"); child;
+            child = XMLUtils::getNextSibling(child)) {
+            string bond = XMLUtils::getAttribute(child, "security");
+            SpotShiftData data;
+            shiftDataFromXML(child, data);
+            securityShiftData_[bond] = data;
+            securityNames_.push_back(bond);
+        }
+    }
+
     LOG("Get cross gamma parameters");
     vector<string> filter = XMLUtils::getChildrenValues(node, "CrossGammaFilter", "Pair", true);
     for (Size i = 0; i < filter.size(); ++i) {
@@ -271,9 +331,10 @@ void SensitivityScenarioData::fromXML(XMLNode* root) {
     }
 }
 
-XMLNode* SensitivityScenarioData::toXML(XMLDocument& doc) {
+XMLNode* SensitivityScenarioData::toXML(ore::data::XMLDocument& doc) {
     XMLNode* node = doc.allocNode("SensitivityAnalysis");
     // TODO
+
     return node;
 }
 

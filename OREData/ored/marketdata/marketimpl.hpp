@@ -104,6 +104,10 @@ public:
     //! CapFloor volatilities
     Handle<OptionletVolatilityStructure> capFloorVol(const string& ccy,
                                                      const string& configuration = Market::defaultConfiguration) const;
+   
+    //! YoY Inflation CapFloor volatilities
+    Handle<QuantExt::YoYOptionletVolatilitySurface> yoyCapFloorVol(const string& ccy,
+                                                         const string& configuration = Market::defaultConfiguration) const;
 
     //! Inflation Indexes
     virtual Handle<ZeroInflationIndex>
@@ -111,10 +115,15 @@ public:
     virtual Handle<YoYInflationIndex>
     yoyInflationIndex(const string& indexName, const string& configuration = Market::defaultConfiguration) const;
 
-    //! Inflation Cap Floor Price Surfaces
+    //! CPI Inflation Cap Floor Price Surfaces
     virtual Handle<CPICapFloorTermPriceSurface>
-    inflationCapFloorPriceSurface(const string& indexName,
-                                  const string& configuration = Market::defaultConfiguration) const;
+    cpiInflationCapFloorPriceSurface(const string& indexName,
+                                     const string& configuration = Market::defaultConfiguration) const;
+
+    //! YoY Inflation Cap Floor Price Surfaces
+    virtual Handle<YoYCapFloorTermPriceSurface>
+    yoyInflationCapFloorPriceSurface(const string& indexName,
+                                     const string& configuration = Market::defaultConfiguration) const;
 
     //! Equity curves
     Handle<Quote> equitySpot(const string& eqName, const string& configuration = Market::defaultConfiguration) const;
@@ -137,6 +146,15 @@ public:
     Handle<QuantExt::InflationIndexObserver> baseCpis(const string& index,
                                                       const string& configuration = Market::defaultConfiguration) const;
 
+    //! Commodity curves
+    QuantLib::Handle<QuantLib::Quote> commoditySpot(const std::string& commodityName, 
+        const std::string& configuration = Market::defaultConfiguration) const;
+
+    QuantLib::Handle<QuantExt::PriceTermStructure> commodityPriceCurve(const std::string& commodityName,
+        const std::string& configuration = Market::defaultConfiguration) const;
+
+    QuantLib::Handle<QuantLib::BlackVolTermStructure> commodityVolatility(const std::string& commodityName,
+        const std::string& configuration = Market::defaultConfiguration) const;
     //@}
 
     //! \name Disable copying
@@ -163,13 +181,18 @@ protected:
     map<pair<string, string>, Handle<BaseCorrelationTermStructure<BilinearInterpolation>>> baseCorrelations_;
     map<pair<string, string>, Handle<Quote>> recoveryRates_;
     map<pair<string, string>, Handle<OptionletVolatilityStructure>> capFloorCurves_;
+    map<pair<string, string>, Handle<QuantExt::YoYOptionletVolatilitySurface>> yoyCapFloorVolSurfaces_;
     map<pair<string, string>, Handle<ZeroInflationIndex>> zeroInflationIndices_;
     map<pair<string, string>, Handle<YoYInflationIndex>> yoyInflationIndices_;
-    map<pair<string, string>, Handle<CPICapFloorTermPriceSurface>> inflationCapFloorPriceSurfaces_;
+    map<pair<string, string>, Handle<CPICapFloorTermPriceSurface>> cpiInflationCapFloorPriceSurfaces_;
+    map<pair<string, string>, Handle<YoYCapFloorTermPriceSurface>> yoyInflationCapFloorPriceSurfaces_;
     map<pair<string, string>, Handle<Quote>> equitySpots_;
     map<pair<string, string>, Handle<BlackVolTermStructure>> equityVols_;
     map<pair<string, string>, Handle<Quote>> securitySpreads_;
     map<pair<string, string>, Handle<QuantExt::InflationIndexObserver>> baseCpis_;
+    std::map<std::pair<std::string, std::string>, QuantLib::Handle<QuantLib::Quote>> commoditySpots_;
+    std::map<std::pair<std::string, std::string>, QuantLib::Handle<QuantExt::PriceTermStructure>> commodityCurves_;
+    std::map<std::pair<std::string, std::string>, QuantLib::Handle<QuantLib::BlackVolTermStructure>> commodityVols_;
     Conventions conventions_;
 
     //! add a swap index to the market

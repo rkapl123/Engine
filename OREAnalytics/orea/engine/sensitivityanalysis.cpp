@@ -95,12 +95,11 @@ void SensitivityAnalysis::initialize(boost::shared_ptr<NPVCube>& cube) {
     initialized_ = true;
 }
 
-void SensitivityAnalysis::generateSensitivities() {
+void SensitivityAnalysis::generateSensitivities(boost::shared_ptr<NPVCube> cube) {
 
     QL_REQUIRE(!initialized_, "unexpected state of SensitivitiesAnalysis object");
 
     // initialize the helper member objects
-    boost::shared_ptr<NPVCube> cube;
     initialize(cube);
     QL_REQUIRE(initialized_, "SensitivitiesAnalysis member objects not correctly initialized");
     boost::shared_ptr<DateGrid> dg = boost::make_shared<DateGrid>("1,0W");
@@ -138,15 +137,12 @@ void SensitivityAnalysis::initializeSimMarket(boost::shared_ptr<ScenarioFactory>
 }
 
 boost::shared_ptr<EngineFactory>
-SensitivityAnalysis::buildFactory(const std::vector<boost::shared_ptr<EngineBuilder>> extraBuilders) const {
+SensitivityAnalysis::buildFactory(const std::vector<boost::shared_ptr<EngineBuilder>> extraBuilders,
+                                  const std::vector<boost::shared_ptr<LegBuilder>> extraLegBuilders) const {
     map<MarketContext, string> configurations;
     configurations[MarketContext::pricing] = marketConfiguration_;
     boost::shared_ptr<EngineFactory> factory =
-        boost::make_shared<EngineFactory>(engineData_, simMarket_, configurations);
-    if (extraBuilders.size() > 0) {
-        for (auto eb : extraBuilders)
-            factory->registerBuilder(eb);
-    }
+        boost::make_shared<EngineFactory>(engineData_, simMarket_, configurations, extraBuilders, extraLegBuilders);
     return factory;
 }
 
@@ -183,17 +179,15 @@ void SensitivityAnalysis::writeScenarioReport(const boost::shared_ptr<Report>& r
 
             Real npv = sensiCube_->getNPV(i, j);
             Real sensi = npv - base;
+            ShiftScenarioGenerator::ScenarioDescription desc = (*scenDesc)[j];
+            string type = desc.typeString();
+            ostringstream o;
+            o << desc.factor1();
+            if (desc.factor2() != "")
+                o << ":" << desc.factor2();
+            string factor = o.str();
 
             if (fabs(sensi) > outputThreshold) {
-
-                ShiftScenarioGenerator::ScenarioDescription desc = (*scenDesc)[j];
-                string type = desc.typeString();
-                ostringstream o;
-                o << desc.factor1();
-                if (desc.factor2() != "")
-                    o << ":" << desc.factor2();
-                string factor = o.str();
-
                 report->next();
                 report->add(id);
                 report->add(factor);
@@ -201,6 +195,9 @@ void SensitivityAnalysis::writeScenarioReport(const boost::shared_ptr<Report>& r
                 report->add(base);
                 report->add(npv);
                 report->add(sensi);
+            } else if (!std::isfinite(sensi)) {
+                ALOG("sensitivity scenario for trade " << id << ", factor " << factor << " is not finite (" << sensi
+                                                       << ")");
             }
         }
     }
@@ -246,6 +243,9 @@ void SensitivityAnalysis::writeSensitivityReport(const boost::shared_ptr<Report>
                 report->add(base);
                 report->add(d);
                 report->add(g);
+            } else if (!std::isfinite(d) || !std::isfinite(g)) {
+                ALOG("sensitivity results for trade " << id << ", factor " << factor << " are not finite (delta = " << d
+                                                      << ", gamma = " << g << ")");
             }
         }
     }
@@ -293,6 +293,9 @@ void SensitivityAnalysis::writeCrossGammaReport(const boost::shared_ptr<Report>&
                 report->add(shiftSize2);
                 report->add(npv0);
                 report->add(cg);
+            }  else if (!std::isfinite(cg)) {
+                ALOG("sensitivity result for trade " << id << ", factors " << factor1 << ", " << factor2
+                                                     << " is not finite (cross-gamma = " << cg << ")");
             }
         }
     }
@@ -546,6 +549,42 @@ Real SensitivityAnalysis::getShiftSize(const RiskFactorKey& key) const {
             Time t = yts->dayCounter().yearFraction(asof_, asof_ + p);
             Real yoyRate = yts->yoyRate(t);
             shiftMult = yoyRate;
+        }
+    } break;
+    case RiskFactorKey::KeyType::CommodityCurve: {
+        auto it = sensitivityData_->commodityCurveShiftData().find(keylabel);
+        QL_REQUIRE(it != sensitivityData_->commodityCurveShiftData().end(), "shiftData not found for " << keylabel);
+        shiftSize = it->second->shiftSize;
+        if (parseShiftType(it->second->shiftType) == SensitivityScenarioGenerator::ShiftType::Relative) {
+            Period p = it->second->shiftTenors[key.index];
+            Handle<PriceTermStructure> priceCurve = simMarket_->commodityPriceCurve(keylabel, marketConfiguration_);
+            Time t = priceCurve->dayCounter().yearFraction(asof_, asof_ + p);
+            shiftMult = priceCurve->price(t);
+        }
+    } break;
+    case RiskFactorKey::KeyType::CommodityVolatility: {
+        auto it = sensitivityData_->commodityVolShiftData().find(keylabel);
+        QL_REQUIRE(it != sensitivityData_->commodityVolShiftData().end(), "shiftData not found for " << keylabel);
+
+        shiftSize = it->second.shiftSize;
+        if (parseShiftType(it->second.shiftType) == SensitivityScenarioGenerator::ShiftType::Relative) {
+            Size moneynessIndex = key.index / it->second.shiftExpiries.size();
+            Size expiryIndex = key.index % it->second.shiftExpiries.size();
+            Real moneyness = it->second.shiftStrikes[moneynessIndex];
+            Period expiry = it->second.shiftExpiries[expiryIndex];
+            Real spotValue = simMarket_->commoditySpot(keylabel, marketConfiguration_)->value();
+            Handle<BlackVolTermStructure> vts = simMarket_->commodityVolatility(keylabel, marketConfiguration_);
+            Time t = vts->dayCounter().yearFraction(asof_, asof_ + expiry);
+            Real vol = vts->blackVol(t, moneyness * spotValue);
+            shiftMult = vol;
+        }
+    } break;
+    case RiskFactorKey::KeyType::SecuritySpread: {
+        auto itr = sensitivityData_->securityShiftData().find(keylabel);
+        QL_REQUIRE(itr != sensitivityData_->securityShiftData().end(), "shiftData not found for " << keylabel);
+        shiftSize = itr->second.shiftSize;
+        if (parseShiftType(itr->second.shiftType) == SensitivityScenarioGenerator::ShiftType::Relative) {
+            shiftMult = simMarket_->securitySpread(keylabel, marketConfiguration_)->value();
         }
     } break;
     default:

@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <vector>
 #include <ored/report/report.hpp>
 #include <ql/errors.hpp>
 
@@ -73,6 +74,7 @@ public:
     Size columns() const { return headers_.size(); }
     const string& header(Size i) const { return headers_[i]; }
     ReportType columnType(Size i) const { return columnTypes_[i]; }
+    Size columnPrecision(Size i) const { return columnPrecision_[i]; }
     //! Returns the data
     const vector<ReportType>& data(Size i) const { return data_[i]; }
 

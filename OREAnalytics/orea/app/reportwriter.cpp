@@ -26,6 +26,7 @@
 #include <ql/cashflows/inflationcoupon.hpp>
 #include <ql/errors.hpp>
 #include <qle/cashflows/fxlinkedcashflow.hpp>
+#include <ql/cashflows/averagebmacoupon.hpp>
 #include <stdio.h>
 
 using std::string;
@@ -60,11 +61,13 @@ void ReportWriter::writeNpv(ore::data::Report& report, const std::string& baseCu
             fx = market->fxSpot(npvCcy + baseCurrency, configuration)->value();
         try {
             Real npv = trade->instrument()->NPV();
+            QL_REQUIRE(std::isfinite(npv), "npv is not finite (" << npv << ")");
+            Date maturity = trade->maturity();
             report.next()
                 .add(trade->id())
                 .add(trade->tradeType())
-                .add(trade->maturity())
-                .add(dc.yearFraction(today, trade->maturity()))
+                .add(maturity)
+                .add(maturity == QuantLib::Null<Date>() ? Null<Real>() : dc.yearFraction(today, maturity))
                 .add(npv)
                 .add(npvCcy)
                 .add(npv * fx)
@@ -75,11 +78,12 @@ void ReportWriter::writeNpv(ore::data::Report& report, const std::string& baseCu
                 .add(trade->envelope().counterparty());
         } catch (std::exception& e) {
             ALOG("Exception during pricing trade " << trade->id() << ": " << e.what());
+            Date maturity = trade->maturity();
             report.next()
                 .add(trade->id())
                 .add(trade->tradeType())
-                .add(trade->maturity())
-                .add(dc.yearFraction(today, trade->maturity()))
+                .add(maturity)
+                .add(maturity == QuantLib::Null<Date>() ? Null<Real>() : dc.yearFraction(today, maturity))
                 .add(Null<Real>())
                 .add("#NA")
                 .add(Null<Real>())
@@ -108,7 +112,8 @@ void ReportWriter::writeCashflow(ore::data::Report& report, boost::shared_ptr<Po
         .addColumn("Coupon", double(), 10)
         .addColumn("Accrual", double(), 10)
         .addColumn("fixingDate", Date())
-        .addColumn("fixingValue", double(), 10);
+        .addColumn("fixingValue", double(), 10)
+        .addColumn("Notional", double(), 4);
 
     const vector<boost::shared_ptr<Trade>>& trades = portfolio->trades();
 
@@ -136,15 +141,22 @@ void ReportWriter::writeCashflow(ore::data::Report& report, boost::shared_ptr<Po
                             boost::dynamic_pointer_cast<QuantLib::Coupon>(ptrFlow);
                         Real coupon;
                         Real accrual;
+                        Real notional;
                         if (ptrCoupon) {
                             coupon = ptrCoupon->rate();
                             accrual = ptrCoupon->accrualPeriod();
+                            notional = ptrCoupon->nominal();
                             flowType = "Interest";
                         } else {
                             coupon = Null<Real>();
                             accrual = Null<Real>();
+                            notional = Null<Real>();
                             flowType = "Notional";
                         }
+                        // This BMA part here (and below) is necessary because the fixingDay() method of
+                        // AverageBMACoupon returns an exception rather than the last fixing day of the period.
+                        boost::shared_ptr<AverageBMACoupon> ptrBMA =
+                            boost::dynamic_pointer_cast<QuantLib::AverageBMACoupon>(ptrFlow);
                         boost::shared_ptr<QuantLib::FloatingRateCoupon> ptrFloat =
                             boost::dynamic_pointer_cast<QuantLib::FloatingRateCoupon>(ptrFlow);
                         boost::shared_ptr<QuantLib::InflationCoupon> ptrInfl =
@@ -155,10 +167,16 @@ void ReportWriter::writeCashflow(ore::data::Report& report, boost::shared_ptr<Po
                             boost::dynamic_pointer_cast<QuantExt::FXLinkedCashFlow>(ptrFlow);
                         Date fixingDate;
                         Real fixingValue;
-                        if (ptrFloat) {
+                        if (ptrBMA) {
+                            // We return the last fixing inside the coupon period
+                            fixingDate = ptrBMA->fixingDates().end()[-2];
+                            fixingValue = ptrBMA->pricer()->swapletRate();
+                            if (ptrBMA->index()->pastFixing(fixingDate) == Null<Real>())
+                                flowType = "BMAaverage";
+                        } else if (ptrFloat) {
                             fixingDate = ptrFloat->fixingDate();
                             fixingValue = ptrFloat->index()->fixing(fixingDate);
-                            if (fixingDate > asof)
+                            if (ptrFloat->index()->pastFixing(fixingDate) == Null<Real>())
                                 flowType = "InterestProjected";
                         } else if (ptrInfl) {
                             fixingDate = ptrInfl->fixingDate();
@@ -187,7 +205,8 @@ void ReportWriter::writeCashflow(ore::data::Report& report, boost::shared_ptr<Po
                             .add(coupon)
                             .add(accrual)
                             .add(fixingDate)
-                            .add(fixingValue);
+                            .add(fixingValue)
+                            .add(notional);
                     }
                 }
             }

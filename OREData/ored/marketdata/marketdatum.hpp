@@ -72,6 +72,7 @@ public:
         IMM_FRA,
         IR_SWAP,
         BASIS_SWAP,
+        BMA_SWAP,
         CC_BASIS_SWAP,
         CDS,
         CDS_INDEX,
@@ -85,13 +86,17 @@ public:
         ZC_INFLATIONSWAP,
         ZC_INFLATIONCAPFLOOR,
         YY_INFLATIONSWAP,
+        YY_INFLATIONCAPFLOOR,
         SEASONALITY,
         EQUITY_SPOT,
         EQUITY_FWD,
         EQUITY_DIVIDEND,
         EQUITY_OPTION,
         BOND,
-        INDEX_CDS_OPTION
+        INDEX_CDS_OPTION,
+        COMMODITY_SPOT,
+        COMMODITY_FWD,
+        COMMODITY_OPTION
     };
 
     //! Supported market quote types
@@ -382,6 +387,42 @@ public:
     //@}
 private:
     Period flatTerm_;
+    Period term_;
+    string ccy_;
+    Period maturity_;
+};
+
+//! BMA Swap data class
+/*!
+This class holds single market points of type
+- BMA_SWAP
+Specific data comprise
+- term
+- currency
+- maturity
+
+The quote (in Basis Points) is then interpreted as follows:
+
+A fair Swap pays the libor index with gearing equal to the quote
+and receives the bma index.
+
+\ingroup marketdata
+*/
+class BMASwapQuote : public MarketDatum {
+public:
+    //! Constructor
+    BMASwapQuote(Real value, Date asofDate, const string& name, QuoteType quoteType, Period term,
+        string ccy = "USD", Period maturity = 3 * Months)
+        : MarketDatum(value, asofDate, name, quoteType, InstrumentType::BMA_SWAP), term_(term),
+        ccy_(ccy), maturity_(maturity) {}
+
+    //! \name Inspectors
+    //@{
+    const Period& term() const { return term_; }
+    const string& ccy() const { return ccy_; }
+    const Period& maturity() const { return maturity_; }
+    //@}
+private:
     Period term_;
     string ccy_;
     Period maturity_;
@@ -765,21 +806,21 @@ private:
     Period term_;
 };
 
-//! ZC Cap Floor data class
+//! Inflation Cap Floor data class
 /*!
- This class holds single market points of type
- - ZC_INFLATION_CAPFLOOR
- Specific data comprise type (can be price or nvol or slnvol),
- index, term, cap/floor, strike
+This class holds single market points of type
+- INFLATION_CAPFLOOR
+Specific data comprise type (can be price or nvol or slnvol),
+index, term, cap/floor, strike
 
- \ingroup marketdata
- */
-class ZcInflationCapFloorQuote : public MarketDatum {
+\ingroup marketdata
+*/
+class InflationCapFloorQuote : public MarketDatum {
 public:
-    ZcInflationCapFloorQuote(Real value, Date asofDate, const string& name, QuoteType quoteType, const string& index,
-                             Period term, bool isCap, const string& strike)
-        : MarketDatum(value, asofDate, name, quoteType, InstrumentType::ZC_INFLATIONCAPFLOOR), index_(index),
-          term_(term), isCap_(isCap), strike_(strike) {}
+    InflationCapFloorQuote(Real value, Date asofDate, const string& name, QuoteType quoteType, const string& index,
+        Period term, bool isCap, const string& strike, InstrumentType instrumentType)
+        : MarketDatum(value, asofDate, name, quoteType, instrumentType), index_(index),
+        term_(term), isCap_(isCap), strike_(strike) {}
     string index() { return index_; }
     Period term() { return term_; }
     bool isCap() { return isCap_; }
@@ -790,6 +831,23 @@ private:
     Period term_;
     bool isCap_;
     string strike_;
+};
+
+//! ZC Cap Floor data class
+/*!
+ This class holds single market points of type
+ - ZC_INFLATION_CAPFLOOR
+ Specific data comprise type (can be price or nvol or slnvol),
+ index, term, cap/floor, strike
+
+ \ingroup marketdata
+ */
+class ZcInflationCapFloorQuote : public InflationCapFloorQuote {
+public:
+    ZcInflationCapFloorQuote(Real value, Date asofDate, const string& name, QuoteType quoteType, const string& index,
+                             Period term, bool isCap, const string& strike)
+        : InflationCapFloorQuote(value, asofDate, name, quoteType, index, term, isCap, strike, 
+                                 InstrumentType::ZC_INFLATIONCAPFLOOR) {}
 };
 
 //! YoY Inflation swap data class
@@ -811,6 +869,23 @@ public:
 private:
     string index_;
     Period term_;
+};
+
+//! YY Cap Floor data class
+/*!
+This class holds single market points of type
+- YY_INFLATION_CAPFLOOR
+Specific data comprise type (can be price or nvol or slnvol),
+index, term, cap/floor, strike
+
+\ingroup marketdata
+*/
+class YyInflationCapFloorQuote : public InflationCapFloorQuote {
+public:
+    YyInflationCapFloorQuote(Real value, Date asofDate, const string& name, QuoteType quoteType, const string& index,
+        Period term, bool isCap, const string& strike)
+        : InflationCapFloorQuote(value, asofDate, name, quoteType, index, term, isCap, strike,
+            InstrumentType::YY_INFLATIONCAPFLOOR) {}
 };
 
 //! Inflation seasonality data class
@@ -1034,5 +1109,98 @@ private:
     string indexName_;
     string expiry_;
 };
+
+//! Commodity spot quote class
+/*! This class holds a spot price for a commodity in a given currency
+    \ingroup marketdata
+*/
+class CommoditySpotQuote : public MarketDatum {
+public:
+    //! Constructor
+    CommoditySpotQuote(QuantLib::Real value, const QuantLib::Date& asofDate, const std::string& name,
+        QuoteType quoteType, const std::string& commodityName, const std::string& quoteCurrency)
+        : MarketDatum(value, asofDate, name, quoteType, InstrumentType::COMMODITY_SPOT), 
+          commodityName_(commodityName), quoteCurrency_(quoteCurrency) {
+        QL_REQUIRE(quoteType == QuoteType::PRICE, "Commodity spot quote must be of type 'PRICE'");
+    }
+
+    //! \name Inspectors
+    //@{
+    const std::string& commodityName() const { return commodityName_; }
+    const std::string& quoteCurrency() const { return quoteCurrency_; }
+    //@}
+
+private:
+    std::string commodityName_;
+    std::string quoteCurrency_;
+};
+
+//! Commodity forward quote class
+/*! This class holds a forward price for a commodity in a given currency
+    \ingroup marketdata
+*/
+class CommodityForwardQuote : public MarketDatum {
+public:
+    //! Constructor
+    CommodityForwardQuote(QuantLib::Real value, const QuantLib::Date& asofDate, const std::string& name, QuoteType quoteType,
+        const std::string& commodityName, const std::string& quoteCurrency, const QuantLib::Date& expiryDate)
+        : MarketDatum(value, asofDate, name, quoteType, InstrumentType::COMMODITY_FWD), 
+          commodityName_(commodityName), quoteCurrency_(quoteCurrency), expiryDate_(expiryDate) {
+        QL_REQUIRE(quoteType == QuoteType::PRICE, "Commodity forward quote must be of type 'PRICE'");
+    }
+
+    //! \name Inspectors
+    //@{
+    const std::string& commodityName() const { return commodityName_; }
+    const std::string& quoteCurrency() const { return quoteCurrency_; }
+    const QuantLib::Date& expiryDate() const { return expiryDate_; }
+    //@}
+
+private:
+    std::string commodityName_;
+    std::string quoteCurrency_;
+    QuantLib::Date expiryDate_;
+};
+
+//! Commodity option data class
+/*! This class holds single market points of type COMMODITY_OPTION
+    \ingroup marketdata
+*/
+class CommodityOptionQuote : public MarketDatum {
+public:
+    //! Constructor
+    /*! \param value         The volatility value
+        \param asof          The quote date
+        \param name          The quote name
+        \param quoteType     The quote type, should be RATE_NVOL
+        \param commodityName The name of the underlying commodity
+        \param quoteCurrency The quote currency
+        \param expiry        Expiry can be a period or a date
+        \param strike        Can be underlying commodity price or ATMF 
+    */
+    CommodityOptionQuote(QuantLib::Real value, 
+        const QuantLib::Date& asof, 
+        const std::string& name, 
+        QuoteType quoteType, 
+        const std::string& commodityName,
+        const std::string& quoteCurrency,
+        const std::string& expiry,
+        const std::string& strike);
+
+    //! \name Inspectors
+    //@{
+    const std::string& commodityName() const { return commodityName_; }
+    const std::string& quoteCurrency() const { return quoteCurrency_; }
+    const std::string& expiry() const { return expiry_; }
+    const std::string& strike() const { return strike_; }
+    //@}
+
+private:
+    std::string commodityName_;
+    std::string quoteCurrency_;
+    std::string expiry_;
+    std::string strike_;
+};
+
 } // namespace data
 } // namespace ore

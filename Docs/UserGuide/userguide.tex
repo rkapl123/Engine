@@ -1425,6 +1425,7 @@ portfolio used in this example consists of
 \item a cap and a floor in USD
 \item a cap and a floor in EUR
 \item a fixed rate bond
+\item a floating rate bond with floor
 \item an Equity call option, put option and forward on S\&P500
 \item an Equity call option, put option and forward on Lufthansa
 \item a CPI Swap referencing UKRPI
@@ -1914,13 +1915,13 @@ a typical output for a vanilla swap.
 \begin{table}[hbt]
 \scriptsize
 \begin{center}
-  \begin{tabular}{l|l|l|l|r|l|r|r|l|r}
+  \begin{tabular}{l|l|l|l|r|l|r|r|l|r|r}
 \hline
-\#ID & Type & LegNo & PayDate & Amount & Currency & Coupon & Accrual & fixingDate & fixingValue \\
+\#ID & Type & LegNo & PayDate & Amount & Currency & Coupon & Accrual & fixingDate & fixingValue & Notional \\
 \hline
 \hline
-tr123 & Swap & 0 & 13/03/17 & -76212.5 & EUR & -0.00201 & 0.50556 & 08/09/16 & -0.00201 \\
-tr123 & Swap & 0 & 12/09/17 & -90683.9212 & EUR & -0.002379 & 0.50833 & 09/03/17 & -0.002381 \\
+tr123 & Swap & 0 & 13/03/17 & -111273.76 & EUR & -0.00201 & 0.50556 & 08/09/16 & -0.00201 & 100000000.00 \\
+tr123 & Swap & 0 & 12/09/17 & -120931.71 & EUR & -0.002379 & 0.50833 & 09/03/17 & -0.002381 & 100000000.00 \\
 \ldots
 \end{tabular}
 \caption{Cashflow Report}
@@ -1937,6 +1938,9 @@ compiled {\em without} the flag \verb+QL_USE_INDEXED_COUPON+ (which is the defau
 uses a par approximation for the forward rate assuming the index estimation period to be identical to the accrual
 period, while the fixing value is the actual forward rate for the index estimation period, i.e. whenever the index estimation
 period differs from the accrual period the values will be slightly different.
+
+The Notional column contains the underlying notional used to compute the amount of each coupon. It contains \verb+#NA+
+if a payment is not a coupon payment.
 
 The curves analytic exports all yield curves that have been built according to the specification in {\tt
   todaysmarket.xml}. Key {\tt configuration} selects the curve set to be used (see explanation in the previous Markets
@@ -2756,7 +2760,12 @@ following is an overview over the Example section's {\tt pricingengine.xml}. Fur
     <Model>BlackOrBachelier</Model>
     <ModelParameters/>
     <Engine>BlackIborCouponPricer</Engine>
-    <EngineParameters/>
+    <EngineParameters>
+      <!-- Black76 or BivariateLognormal -->
+      <TimingAdjustment>Black76</TimingAdjustment>
+      <!-- Correlation Parameter for BivariateLognormal -->
+      <Correlation>1.0</Correlation>
+    </EngineParameters>
   </Product>
   <Product type="EquityForward">
     <Model>DiscountedCashflows</Model>
@@ -2823,8 +2832,8 @@ For example, in case of the Bermudan Swaption, the parameters are interpreted as
   used per standard deviation (ny and nx).
 \end{itemize}
 
-To see the configuration options for the alternative CMS engines (Hagan Numerical, LinearTSR), please refer to the 
-commented parts in {\tt Examples/Input/pricingengine.xml}.
+To see the configuration options for the alternative CMS engines (Hagan Numerical, LinearTSR) or the Black Ibor coupon
+pricer (CapFlooredIborLeg), please refer to the commented parts in {\tt Examples/Input/pricingengine.xml}.
 
 \medskip
 This file is relevant in particular for structured products which are on the roadmap of future ORE releases. But it is also
@@ -3215,9 +3224,6 @@ FX volatilities are taken to be a curve by default. To simulate an FX volatility
 For Yield Curves, Swaption Volatilities, CapFloor Volatilities, Default Curves, Base Correlations and Inflation Curves, a DayCounter may be specified for each riskfactor using the node {\tt <DayCounter name="EXAMPLE\_CURVE">}.  
 If no day counter is specified for a given riskfactor then the default Actual365 is used. To specify a new default for a riskfactor type then use the daycounter node without any attribute,  {\tt <DayCounter>}. 
 
-For Yield Curves, Swaption Volatilities, CapFloor Volatilities, Default Curves, Base Correlations and Inflation Curves, a DayCounter may be specified for each riskfactor using the node {\tt <DayCounter name="EXAMPLE\_CURVE">}. 
-If no day counter is specified for a given riskfactor then the default Actual365 is used. To specify a new default for a riskfactor type then use the daycounter node without any attribute,  {\tt <DayCounter>}.
-
 \begin{longlisting}
 %\hrule\medskip
 \begin{minted}[fontsize=\footnotesize]{xml}
@@ -3304,6 +3310,21 @@ If no day counter is specified for a given riskfactor then the default Actual365
         <Moneyness>0.1,0.5,1.0,1.5,2.0,3.0</Moneyness><!-- omitted if SimulateATMOnly true -->
       </Surface>
   </EquityVolatilities>
+  ...
+  <BenchmarkCurves>
+	<BenchmarkCurve>
+      <Currency>EUR</Currency>
+      <Name>BENCHMARK_EUR</Name>
+	</BenchmarkCurve>
+	...
+  </BenchmarkCurves>
+  <Securities>
+    <Simulate>true</Simulate>
+    <Names>
+      <Name>SECURITY_1</Name>
+      ...
+    </Names>
+  </Securities>
   <ZeroInflationIndexCurves>
     <Names>
       <Name>EUHICP</Name>
@@ -3366,6 +3387,7 @@ ORE currently supports sensitivity analysis with respect to
 \item Zero inflation curves
 \item Year-on-Year inflation curves
 \item CDS volatilities
+\item Bond credit spreads
 \item Base correlation curves
 \end{itemize}
 
@@ -3476,6 +3498,12 @@ giving an example in each category:
       <Index>EUR-EURIBOR-6M</Index>
     </CapFloorVolatility>
   </CapFloorVolatilities>
+  <SecuritySpreads>
+    <SecuritySpread security="SECURITY_1">
+      <ShiftType>Absolute</ShiftType>
+      <ShiftSize>0.0001</ShiftSize>
+    </SecuritySpread>
+  </SecuritySpreads>
   ...
   <CrossGammaFilter>
     <Pair>DiscountCurve/EUR,DiscountCurve/EUR</Pair>

@@ -33,7 +33,6 @@ using std::vector;
 using std::string;
 using std::pair;
 using ore::data::XMLSerializable;
-using ore::data::XMLDocument;
 using ore::data::XMLNode;
 using ore::data::XMLUtils;
 
@@ -146,6 +145,17 @@ public:
     const vector<string>& equityVolNames() const { return equityVolNames_; }
     const map<string, VolShiftData>& equityVolShiftData() const { return equityVolShiftData_; }
 
+    const std::set<std::string>& commodityNames() const { return commodityNames_; }
+    const std::map<std::string, SpotShiftData>& commodityShiftData() const { return commodityShiftData_; }
+    const std::map<std::string, std::string>& commodityCurrencies() const { return commodityCurrencies_; }
+    const std::map<std::string, boost::shared_ptr<CurveShiftData>>& commodityCurveShiftData() const { return commodityCurveShiftData_; }
+
+    const std::set<std::string>& commodityVolNames() const { return commodityVolNames_; }
+    const std::map<std::string, VolShiftData>& commodityVolShiftData() const { return commodityVolShiftData_; }
+
+    const vector<string>& securityNames() const { return securityNames_; }
+    const map<string, SpotShiftData>& securityShiftData() const { return securityShiftData_; }
+
     const vector<pair<string, string>>& crossGammaFilter() const { return crossGammaFilter_; }
 
     //@}
@@ -205,6 +215,17 @@ public:
     vector<string>& equityVolNames() { return equityVolNames_; }
     map<string, VolShiftData>& equityVolShiftData() { return equityVolShiftData_; }
 
+    std::set<std::string>& commodityNames() { return commodityNames_; }
+    std::map<std::string, SpotShiftData>& commodityShiftData() { return commodityShiftData_; }
+    std::map<std::string, std::string>& commodityCurrencies() { return commodityCurrencies_; }
+    std::map<std::string, boost::shared_ptr<CurveShiftData>>& commodityCurveShiftData() { return commodityCurveShiftData_; }
+
+    std::set<std::string>& commodityVolNames() { return commodityVolNames_; }
+    std::map<std::string, VolShiftData>& commodityVolShiftData() { return commodityVolShiftData_; }
+
+    vector<string>& securityNames() { return securityNames_; }
+    map<string, SpotShiftData>& securityShiftData() { return securityShiftData_; }
+
     vector<pair<string, string>>& crossGammaFilter() { return crossGammaFilter_; }
 
     //@}
@@ -212,7 +233,7 @@ public:
     //! \name Serialisation
     //@{
     virtual void fromXML(XMLNode* node);
-    virtual XMLNode* toXML(XMLDocument& doc);
+    virtual XMLNode* toXML(ore::data::XMLDocument& doc);
     //@}
 
     //! \name Equality Operators
@@ -279,6 +300,17 @@ protected:
 
     vector<string> baseCorrelationNames_;
     map<string, BaseCorrelationShiftData> baseCorrelationShiftData_;
+
+    std::set<std::string> commodityNames_;
+    std::map<std::string, SpotShiftData> commodityShiftData_;
+    std::map<std::string, std::string> commodityCurrencies_;
+    std::map<std::string, boost::shared_ptr<CurveShiftData>> commodityCurveShiftData_;
+
+    std::set<std::string> commodityVolNames_;
+    std::map<std::string, VolShiftData> commodityVolShiftData_;
+
+    vector<string> securityNames_;
+    map<string, SpotShiftData> securityShiftData_; // key: security name
 
     vector<pair<string, string>> crossGammaFilter_;
 };
