@@ -1,0 +1,89 @@
+<TodaysMarket>
+
+  <!-- configuration for model calibration -->
+  <Configuration Id="default">
+    <DiscountingCurvesId>inccy_swap</DiscountingCurvesId>
+    <IndexForwardingCurvesId>default</IndexForwardingCurvesId>
+    <SwapIndexCurvesId>default</SwapIndexCurvesId>
+    <FxSpotsId>default</FxSpotsId>
+    <FxVolatilitiesId>default</FxVolatilitiesId>
+    <SwaptionVolatilitiesId>default</SwaptionVolatilitiesId>
+    <DefaultCurvesId>default</DefaultCurvesId>
+  </Configuration>
+
+  <!-- todo: configuration for simulation ... -->
+
+  <!-- discounting curve definition (in ccy swap discountin) -->
+  <DiscountingCurves Id="inccy_swap">
+    <DiscountingCurve Currency="EUR">Yield/EUR/EUR6M</DiscountingCurve>
+    <DiscountingCurve Currency="USD">Yield/USD/USD3M</DiscountingCurve>
+    <DiscountingCurve Currency="GBP">Yield/GBP/GBP6M</DiscountingCurve>
+    <DiscountingCurve Currency="CHF">Yield/CHF/CHF6M</DiscountingCurve>
+  </DiscountingCurves>
+
+  <!-- index forwarding curve definition -->
+  <IndexForwardingCurves Id="default">
+    <Index Name="EUR-EURIBOR-1M">Yield/EUR/EUR3M</Index>
+    <Index Name="EUR-EURIBOR-3M">Yield/EUR/EUR3M</Index>
+    <Index Name="EUR-EURIBOR-6M">Yield/EUR/EUR6M</Index>
+    <Index Name="EUR-EURIBOR-12M">Yield/EUR/EUR6M</Index>
+    <Index Name="EUR-EONIA">Yield/EUR/EUR1D</Index>
+    <Index Name="USD-LIBOR-3M">Yield/USD/USD3M</Index>
+    <!-- USD6M curve does not work due to missing market data ... -->
+    <Index Name="USD-FedFunds">Yield/USD/USD1D</Index>
+    <Index Name="USD-LIBOR-6M">Yield/USD/USD3M</Index>
+    <Index Name="GBP-SONIA">Yield/GBP/GBP1D</Index>
+    <Index Name="GBP-LIBOR-3M">Yield/GBP/GBP3M</Index>
+    <!--<Index Name="CHF-TOIS">Yield/CHF/CHF1D</Index>-->
+    <Index Name="GBP-LIBOR-6M">Yield/GBP/GBP6M</Index>
+    <Index Name="CHF-LIBOR-6M">Yield/CHF/CHF6M</Index>
+    <Index name="CHF-LIBOR-3M">Yield/CHF/CHF6M</Index> <!-- FIXME -->
+  </IndexForwardingCurves>
+
+  <SwapIndexCurves Id="default">
+    <SwapIndex Name="EUR-CMS-2Y">
+      <Discounting>EUR-EONIA</Discounting>
+    </SwapIndex>
+    <SwapIndex Name="EUR-CMS-30Y">
+      <Discounting>EUR-EONIA</Discounting>
+    </SwapIndex>
+    <SwapIndex Name="USD-CMS-30Y">
+      <Discounting>USD-FedFunds</Discounting>
+    </SwapIndex>
+    <SwapIndex Name="GBP-CMS-30Y">
+      <Discounting>GBP-SONIA</Discounting>
+    </SwapIndex>
+    <SwapIndex Name="CHF-CMS-30Y">
+      <Discounting>CHF-LIBOR-6M</Discounting><!-- CHF-TOIS and CHF1D do not work--> 
+    </SwapIndex>
+  </SwapIndexCurves>
+
+  <!-- fx spot definition -->
+  <FxSpots Id="default">
+    <FxSpot Pair="EURUSD">FX/EUR/USD</FxSpot>
+    <FxSpot Pair="EURGBP">FX/EUR/GBP</FxSpot>
+    <FxSpot Pair="EURCHF">FX/EUR/CHF</FxSpot>
+  </FxSpots>
+
+  <!-- fx volatility definition -->
+  <FxVolatilities Id="default">
+    <FxVolatility Pair="EURUSD">FXVolatility/EUR/USD/EURUSD</FxVolatility>
+    <FxVolatility Pair="EURGBP">FXVolatility/EUR/GBP/EURGBP</FxVolatility>
+    <FxVolatility Pair="EURCHF">FXVolatility/EUR/CHF/EURCHF</FxVolatility>
+  </FxVolatilities>
+
+  <!-- swaption volatility definition -->
+  <SwaptionVolatilities Id="default">
+    <SwaptionVolatility Currency="EUR">SwaptionVolatility/EUR/EUR_SW_N</SwaptionVolatility>
+    <SwaptionVolatility Currency="USD">SwaptionVolatility/USD/USD_SW_N</SwaptionVolatility>
+    <SwaptionVolatility Currency="GBP">SwaptionVolatility/GBP/GBP_SW_N</SwaptionVolatility>
+    <SwaptionVolatility Currency="CHF">SwaptionVolatility/CHF/CHF_SW_N</SwaptionVolatility>
+  </SwaptionVolatilities>
+
+  <!-- default curves definition -->
+  <DefaultCurves Id="default">
+    <DefaultCurve Name="FMS">Default/USD/FMS_SR_USD</DefaultCurve>
+    <DefaultCurve Name="CUST_M1">Default/USD/CUST_M1_SR_USD</DefaultCurve>
+  </DefaultCurves>
+
+</TodaysMarket>

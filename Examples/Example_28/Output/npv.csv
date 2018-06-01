@@ -1,0 +1,2 @@
+#TradeId,TradeType,Maturity,MaturityTime,NPV,NpvCurrency,NPV(Base),BaseCurrency,Notional,Notional(Base),NettingSet,CounterParty
+CMS_Spread_Swap,Swap,2035-10-29,19.729029,-1649870.132491,EUR,-1649870.132491,EUR,10000000.00,10000000.00,CPTY_A,CPTY_A
