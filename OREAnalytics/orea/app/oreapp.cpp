@@ -272,13 +272,7 @@ void OREApp::setupLog() {
 void OREApp::closeLog() { Log::instance().removeAllLoggers(); }
 
 void OREApp::getConventions() {
-    if (params_->has("setup", "conventionsFile") && params_->get("setup", "conventionsFile") != "") {
-        string inputPath = params_->get("setup", "inputPath");
-        string conventionsFile = inputPath + "/" + params_->get("setup", "conventionsFile");
-        conventions_.fromFile(conventionsFile);
-    } else {
-        WLOG("No conventions file loaded");
-    }
+        getConfig(conventions_, "setup", "conventionsFile");
 }
 
 void OREApp::buildMarket() {
@@ -301,14 +295,8 @@ void OREApp::buildMarket() {
          * Curve configurations
          */
         CurveConfigurations curveConfigs;
-        if (params_->has("setup", "curveConfigFile") && params_->get("setup", "curveConfigFile") != "") {
-            out_ << setw(tab_) << left << "Curve configuration... " << flush;
-            string curveConfigFile = inputPath + "/" + params_->get("setup", "curveConfigFile");
-            curveConfigs.fromFile(curveConfigFile);
-            out_ << "OK" << endl;
-        } else {
-            WLOG("No curve configurations loaded from file");
-        }
+        out_ << setw(tab_) << left << "Curve configuration... " << flush;
+        getConfig(curveConfigs, "setup", "curveConfigFile");
         market_ = boost::make_shared<TodaysMarket>(asof_, marketParameters_, loader, curveConfigs, conventions_);
     } else {
         WLOG("No market data loaded from file");
@@ -316,23 +304,14 @@ void OREApp::buildMarket() {
 }
 
 void OREApp::getMarketParameters() {
-    if (params_->has("setup", "marketConfigFile") && params_->get("setup", "marketConfigFile") != "") {
-        string inputPath = params_->get("setup", "inputPath");
-        string marketConfigFile = inputPath + "/" + params_->get("setup", "marketConfigFile");
-        marketParameters_.fromFile(marketConfigFile);
-    } else {
-        WLOG("No market parameters loaded");
-    }
+    getConfig(marketParameters_, "setup", "marketConfigFile");
 }
 
 boost::shared_ptr<EngineFactory> OREApp::buildEngineFactory(const boost::shared_ptr<Market>& market,
                                                             const string& groupName) {
     map<MarketContext, string> configurations;
     boost::shared_ptr<EngineData> engineData = boost::make_shared<EngineData>();
-    string inputPath = params_->get("setup", "inputPath");
-    string pricingEnginesFile = inputPath + "/" + params_->get(groupName, "pricingEnginesFile");
-    if (params_->get(groupName, "pricingEnginesFile") != "")
-        engineData->fromFile(pricingEnginesFile);
+    getConfig(*engineData, groupName, "pricingEnginesFile");
     configurations[MarketContext::irCalibration] = params_->get("markets", "lgmcalibration");
     configurations[MarketContext::fxCalibration] = params_->get("markets", "fxcalibration");
     configurations[MarketContext::pricing] = params_->get("markets", "pricing");
@@ -344,32 +323,21 @@ boost::shared_ptr<EngineFactory> OREApp::buildEngineFactory(const boost::shared_
 boost::shared_ptr<TradeFactory> OREApp::buildTradeFactory() { return boost::make_shared<TradeFactory>(getExtraTradeBuilders()); }
 
 boost::shared_ptr<Portfolio> OREApp::buildPortfolio(const boost::shared_ptr<EngineFactory>& factory) {
-    string inputPath = params_->get("setup", "inputPath");
-    string portfoliosString = params_->get("setup", "portfolioFile");
     boost::shared_ptr<Portfolio> portfolio = boost::make_shared<Portfolio>();
-    if (params_->get("setup", "portfolioFile") == "")
-        return portfolio;
-    vector<string> portfolioFiles = getFilenames(portfoliosString, inputPath);
-    for (auto portfolioFile : portfolioFiles) {
-        portfolio->load(portfolioFile, buildTradeFactory());
-    }
+    getPortfolio(portfolio, true);
     portfolio->build(factory);
     return portfolio;
 }
 
 boost::shared_ptr<ScenarioSimMarketParameters> OREApp::getSimMarketData() {
-    string inputPath = params_->get("setup", "inputPath");
-    string simulationConfigFile = inputPath + "/" + params_->get("simulation", "simulationConfigFile");
     boost::shared_ptr<ScenarioSimMarketParameters> simMarketData(new ScenarioSimMarketParameters);
-    simMarketData->fromFile(simulationConfigFile);
+    getConfig(*simMarketData, "simulation", "simulationConfigFile");
     return simMarketData;
 }
 
 boost::shared_ptr<ScenarioGeneratorData> OREApp::getScenarioGeneratorData() {
-    string inputPath = params_->get("setup", "inputPath");
-    string simulationConfigFile = inputPath + "/" + params_->get("simulation", "simulationConfigFile");
     boost::shared_ptr<ScenarioGeneratorData> sgd(new ScenarioGeneratorData);
-    sgd->fromFile(simulationConfigFile);
+    getConfig(*sgd, "simulation", "simulationConfigFile");
     return sgd;
 }
 boost::shared_ptr<ScenarioGenerator>
@@ -377,11 +345,8 @@ OREApp::buildScenarioGenerator(boost::shared_ptr<Market> market,
                                boost::shared_ptr<ScenarioSimMarketParameters> simMarketData,
                                boost::shared_ptr<ScenarioGeneratorData> sgd) {
     LOG("Build Simulation Model");
-    string inputPath = params_->get("setup", "inputPath");
-    string simulationConfigFile = inputPath + "/" + params_->get("simulation", "simulationConfigFile");
-    LOG("Load simulation model data from file: " << simulationConfigFile);
     boost::shared_ptr<CrossAssetModelData> modelData = boost::make_shared<CrossAssetModelData>();
-    modelData->fromFile(simulationConfigFile);
+    getConfig(*modelData, "simulation", "simulationConfigFile");
     string lgmCalibrationMarketStr = Market::defaultConfiguration;
     if (params_->has("markets", "lgmcalibration"))
         lgmCalibrationMarketStr = params_->get("markets", "lgmcalibration");
@@ -418,17 +383,14 @@ OREApp::buildScenarioGenerator(boost::shared_ptr<Market> market,
 
 void OREApp::writeInitialReports() {
 
-    string outputPath = params_->get("setup", "outputPath");
-
     /************
      * Curve dump
      */
     out_ << endl << setw(tab_) << left << "Curve Report... " << flush;
     if (params_->hasGroup("curves") && params_->get("curves", "active") == "Y") {
-        string fileName = outputPath + "/" + params_->get("curves", "outputFileName");
-        CSVFileReport curvesReport(fileName);
+        boost::shared_ptr<Report> curvesReport = getReport("curves", "outputFileName","");
         DateGrid grid(params_->get("curves", "grid"));
-        getReportWriter()->writeCurves(curvesReport, params_->get("curves", "configuration"), grid, marketParameters_,
+        getReportWriter()->writeCurves(*curvesReport, params_->get("curves", "configuration"), grid, marketParameters_,
                                        market_);
         out_ << "OK" << endl;
     } else {
@@ -441,9 +403,8 @@ void OREApp::writeInitialReports() {
      */
     out_ << setw(tab_) << left << "NPV Report... " << flush;
     if (params_->hasGroup("npv") && params_->get("npv", "active") == "Y") {
-        string fileName = outputPath + "/" + params_->get("npv", "outputFileName");
-        CSVFileReport npvReport(fileName);
-        getReportWriter()->writeNpv(npvReport, params_->get("npv", "baseCurrency"), market_,
+        boost::shared_ptr<Report> npvReport = getReport("npv", "outputFileName", "");
+        getReportWriter()->writeNpv(*npvReport, params_->get("npv", "baseCurrency"), market_,
                                     params_->get("markets", "pricing"), portfolio_);
         out_ << "OK" << endl;
     } else {
@@ -456,9 +417,8 @@ void OREApp::writeInitialReports() {
      */
     out_ << setw(tab_) << left << "Cashflow Report... " << flush;
     if (params_->hasGroup("cashflow") && params_->get("cashflow", "active") == "Y") {
-        string fileName = outputPath + "/" + params_->get("cashflow", "outputFileName");
-        CSVFileReport cashflowReport(fileName);
-        getReportWriter()->writeCashflow(cashflowReport, portfolio_);
+        boost::shared_ptr<Report> cashflowReport = getReport("cashflow", "outputFileName", "");
+        getReportWriter()->writeCashflow(*cashflowReport, portfolio_);
         out_ << "OK" << endl;
     } else {
         LOG("skip cashflow generation");
@@ -479,36 +439,29 @@ void OREApp::runStressTest() {
     Settings::instance().evaluationDate() = asof_;
 
     LOG("Get Simulation Market Parameters");
-    string inputPath = params_->get("setup", "inputPath");
-    string marketConfigFile = inputPath + "/" + params_->get("stress", "marketConfigFile");
     boost::shared_ptr<ScenarioSimMarketParameters> simMarketData(new ScenarioSimMarketParameters);
-    simMarketData->fromFile(marketConfigFile);
+    getConfig(*simMarketData, "stress", "marketConfigFile");
 
     LOG("Get Stress Test Parameters");
-    string stressConfigFile = inputPath + "/" + params_->get("stress", "stressConfigFile");
     boost::shared_ptr<StressTestScenarioData> stressData(new StressTestScenarioData);
-    stressData->fromFile(stressConfigFile);
+    getConfig(*stressData, "stress", "stressConfigFile");
 
     LOG("Get Engine Data");
-    string pricingEnginesFile = inputPath + "/" + params_->get("stress", "pricingEnginesFile");
     boost::shared_ptr<EngineData> engineData = boost::make_shared<EngineData>();
-    engineData->fromFile(pricingEnginesFile);
+    getConfig(*engineData, "stress", "pricingEnginesFile");
 
     LOG("Get Portfolio");
-    string portfolioFile = inputPath + "/" + params_->get("setup", "portfolioFile");
     boost::shared_ptr<Portfolio> portfolio = boost::make_shared<Portfolio>();
     // Just load here. We build the portfolio in SensitivityAnalysis, after building SimMarket.
-    portfolio->load(portfolioFile);
+    getPortfolio(portfolio, false);
 
     LOG("Build Stress Test");
     string marketConfiguration = params_->get("markets", "pricing");
     boost::shared_ptr<StressTest> stressTest = boost::make_shared<StressTest>(
         portfolio, market_, marketConfiguration, engineData, simMarketData, stressData, conventions_);
 
-    string outputPath = params_->get("setup", "outputPath");
-    string outputFile = outputPath + "/" + params_->get("stress", "scenarioOutputFile");
     Real threshold = parseReal(params_->get("stress", "outputThreshold"));
-    boost::shared_ptr<Report> stressReport = boost::make_shared<CSVFileReport>(outputFile);
+    boost::shared_ptr<Report> stressReport = getReport("stress", "scenarioOutputFile", "");
     stressTest->writeReport(stressReport, threshold);
 
     out_ << "OK" << endl;
@@ -554,8 +507,8 @@ void OREApp::runParametricVar() {
                                      method, mcSamples, mcSeed, parseBool(params_->get("parametricVar", "breakdown")),
                                      parseBool(params_->get("parametricVar", "salvageCovarianceMatrix")));
 
-    CSVFileReport report(outputPath + "/" + params_->get("parametricVar", "outputFile"));
-    calc->calculate(report);
+    boost::shared_ptr<Report> report = getReport("parametricVar", "outputFile", "");
+    calc->calculate(*report);
     out_ << "OK" << endl;
 }
 
@@ -712,10 +665,9 @@ void OREApp::writeScenarioData() {
         skipped = false;
     }
     if (params_->has("simulation", "aggregationScenarioDataDump")) {
-        // csv output
-        string outputFileNameAddScenData = outputPath + "/" + params_->get("simulation", "aggregationScenarioDataDump");
-        CSVFileReport report(outputFileNameAddScenData);
-        getReportWriter()->writeAggregationScenarioData(report, *scenarioData_);
+        // report output
+        boost::shared_ptr<Report> report = getReport("simulation", "aggregationScenarioDataDump", "");
+        getReportWriter()->writeAggregationScenarioData(*report, *scenarioData_);
         skipped = false;
     }
     if (skipped)
@@ -820,26 +772,26 @@ void OREApp::writeXVAReports() {
         ostringstream o;
         o << outputPath << "/exposure_trade_" << t << ".csv";
         string tradeExposureFile = o.str();
-        CSVFileReport tradeExposureReport(tradeExposureFile);
-        getReportWriter()->writeTradeExposures(tradeExposureReport, postProcess_, t);
+        boost::shared_ptr<Report> tradeExposureReport = getReport("", "", tradeExposureFile);
+        getReportWriter()->writeTradeExposures(*tradeExposureReport, postProcess_, t);
     }
     for (auto n : postProcess_->nettingSetIds()) {
         ostringstream o1;
         o1 << outputPath << "/exposure_nettingset_" << n << ".csv";
         string nettingSetExposureFile = o1.str();
-        CSVFileReport nettingSetExposureReport(nettingSetExposureFile);
-        getReportWriter()->writeNettingSetExposures(nettingSetExposureReport, postProcess_, n);
+        boost::shared_ptr<Report> nettingSetExposureReport = getReport("", "", nettingSetExposureFile);
+        getReportWriter()->writeNettingSetExposures(*nettingSetExposureReport, postProcess_, n);
 
         ostringstream o2;
         o2 << outputPath << "/colva_nettingset_" << n << ".csv";
         string nettingSetColvaFile = o2.str();
-        CSVFileReport nettingSetColvaReport(nettingSetColvaFile);
-        getReportWriter()->writeNettingSetColva(nettingSetColvaReport, postProcess_, n);
+        boost::shared_ptr<Report> nettingSetColvaReport = getReport("", "", nettingSetColvaFile);
+        getReportWriter()->writeNettingSetColva(*nettingSetColvaReport, postProcess_, n);
     }
 
     string XvaFile = outputPath + "/xva.csv";
-    CSVFileReport xvaReport(XvaFile);
-    getReportWriter()->writeXVA(xvaReport, params_->get("xva", "allocationMethod"), portfolio_, postProcess_);
+    boost::shared_ptr<Report> xvaReport = getReport("", "", XvaFile);
+    getReportWriter()->writeXVA(*xvaReport, params_->get("xva", "allocationMethod"), portfolio_, postProcess_);
 
     string rawCubeOutputFile = params_->get("xva", "rawCubeOutputFile");
     CubeWriter cw1(outputPath + "/" + rawCubeOutputFile);
@@ -867,5 +819,71 @@ void OREApp::writeDIMReport() {
         reportVec.push_back(boost::make_shared<ore::data::CSVFileReport>(dimFiles2[i]));
     postProcess_->exportDimRegression(nettingSet, dimOutputGridPoints, reportVec);
 }
+
+boost::shared_ptr<Report> OREApp::getReport(const std::string paramSection, const std::string paramType, const std::string fullPath) {
+    string outputPath = params_->get("setup", "outputPath");
+    if (params_->get(paramSection, paramType) != "") {
+        string filePath = outputPath + "/" + params_->get(paramSection, paramType);
+        return boost::make_shared<CSVFileReport>(filePath);
+    } else if (fullPath != "") {
+        return boost::make_shared<CSVFileReport>(fullPath);
+    } else {
+        return boost::make_shared<InMemoryReport>();
+    }
+}
+
+void OREApp::getConfig(XMLSerializable& paramObject, const std::string paramSection, const std::string paramType) {
+    if (params_->has(paramSection, paramType) && params_->get(paramSection, paramType) != "") {
+        string filePath = params_->get("setup", "inputPath") + "/" + params_->get(paramSection, paramType);
+        LOG("Load " << paramType << " paramObject data from " << filePath);
+        paramObject.fromFile(filePath);
+    } else if (configXMLs_.count(paramType) > 0) {
+        LOG("Get " << paramType << " paramObject data from XML String in configXMLs_");
+        // test the XML for general validity.
+        XMLDocument doc = XMLDocument();
+        try {
+            doc.fromXMLString(configXMLs_[paramType]);
+            paramObject.fromXML(doc.getFirstNode(""));
+        } catch (std::exception& e) {
+            ALOG("Error: " << e.what());
+            out_ << "Error: " << e.what() << endl;
+        }
+    } else {
+        out_ << "No " << paramType << " !" << endl;
+        WLOG("No " + paramType + " loaded from file or XML!");
+    }
+}
+
+void OREApp::getPortfolio(boost::shared_ptr<Portfolio> portfolio, bool buildPortfolio) {
+    if (params_->has("setup", "portfolioFile") && params_->get("setup", "portfolioFile") != "") {
+        string portfoliosString = params_->get("setup", "portfolioFile");
+        vector<string> portfolioFiles = getFilenames(portfoliosString, params_->get("setup", "inputPath"));
+        for (auto portfolioFile : portfolioFiles) {
+            if (buildPortfolio) {
+                portfolio->load(portfolioFile, buildTradeFactory());
+            }
+            else {
+                portfolio->load(portfolioFile);
+            }
+        }
+    }
+    else if (configXMLs_.count("portfolio") > 0) {
+        LOG("Get portfolio data from XML String in configXMLs_");
+        // test the portfolio XML for general validity.
+        try {
+            portfolio->loadFromXMLString(configXMLs_["portfolio"]);
+        }
+        catch (std::exception& e) {
+            ALOG("Error: " << e.what());
+            out_ << "Error: " << e.what() << endl;
+        }
+    }
+    else {
+        out_ << "No portfolio !" << endl;
+        WLOG("No portfolio loaded from file or XML!");
+    }
+}
+
+
 } // namespace analytics
 } // namespace ore

@@ -146,9 +146,13 @@ protected:
                                  const std::vector<Real>& p, const std::string& method, const Size mcSamples,
                                  const Size mcSeed, const bool breakdown, const bool salvageCovarianceMatrix);
 
+    virtual boost::shared_ptr<Report> getReport(const std::string paramSection, const std::string paramType, const std::string fullPath);
+    void getConfig(XMLSerializable& paramObject, const std::string paramSection, const std::string paramType);
+    void getPortfolio(boost::shared_ptr<Portfolio> portfolio, bool buildPortfolio);
     Size tab_, progressBarWidth_;
     Date asof_;
     //! ORE Input parameters
+    map<string, string> configXMLs_;     // Input XML for in memory start
     boost::shared_ptr<Parameters> params_;
     std::ostream& out_;
     bool writeInitialReports_;
