@@ -531,10 +531,8 @@ void OREApp::writeBaseScenario() {
     string marketConfiguration = params_->get("baseScenario", "marketConfiguration");
 
     LOG("Get Simulation Market Parameters");
-    string inputPath = params_->get("setup", "inputPath");
-    string marketConfigFile = inputPath + "/" + params_->get("baseScenario", "marketConfigFile");
     boost::shared_ptr<ScenarioSimMarketParameters> simMarketData(new ScenarioSimMarketParameters);
-    simMarketData->fromFile(marketConfigFile);
+    getConfig(*simMarketData, "baseScenario", "marketConfigFile");
 
     auto simMarket = boost::make_shared<ScenarioSimMarket>(market_, simMarketData, conventions_, marketConfiguration);
     boost::shared_ptr<Scenario> scenario = simMarket->baseScenario();
@@ -698,10 +696,8 @@ void OREApp::loadCube() {
 }
 
 boost::shared_ptr<NettingSetManager> OREApp::initNettingSetManager() {
-    string inputPath = params_->get("setup", "inputPath");
-    string csaFile = inputPath + "/" + params_->get("xva", "csaFile");
     boost::shared_ptr<NettingSetManager> netting = boost::make_shared<NettingSetManager>();
-    netting->fromFile(csaFile);
+    getConfig(*netting, "xva", "csaFile");
     return netting;
 }
 
@@ -822,24 +818,30 @@ void OREApp::writeDIMReport() {
 
 boost::shared_ptr<Report> OREApp::getReport(const std::string paramSection, const std::string paramType, const std::string fullPath) {
     string outputPath = params_->get("setup", "outputPath");
-    if (params_->get(paramSection, paramType) != "") {
+    // three ways to create a report
+    if (fullPath != "") {
+        // provide a CSV File Report at the given full path (supporting files, e.g. exposures etc.)
+        return boost::make_shared<CSVFileReport>(fullPath);
+    } else if (paramSection != "" && paramType != "" && params_->get(paramSection, paramType) != "") {
+        // provide a CSV File Report at the given path in paramSection/paramType
         string filePath = outputPath + "/" + params_->get(paramSection, paramType);
         return boost::make_shared<CSVFileReport>(filePath);
-    } else if (fullPath != "") {
-        return boost::make_shared<CSVFileReport>(fullPath);
     } else {
+        // provide an InMemory Report if not path is given
         return boost::make_shared<InMemoryReport>();
     }
 }
 
 void OREApp::getConfig(XMLSerializable& paramObject, const std::string paramSection, const std::string paramType) {
-    if (params_->has(paramSection, paramType) && params_->get(paramSection, paramType) != "") {
+    // two ways to get a config object
+    if (paramSection != "" && paramType != "" && params_->has(paramSection, paramType) && params_->get(paramSection, paramType) != "") {
+        // provide a config from file with xml at the given path in paramSection/paramType
         string filePath = params_->get("setup", "inputPath") + "/" + params_->get(paramSection, paramType);
         LOG("Load " << paramType << " paramObject data from " << filePath);
         paramObject.fromFile(filePath);
     } else if (configXMLs_.count(paramType) > 0) {
+        // provide a config from XML String in configXMLs_ (named paramType)
         LOG("Get " << paramType << " paramObject data from XML String in configXMLs_");
-        // test the XML for general validity.
         XMLDocument doc = XMLDocument();
         try {
             doc.fromXMLString(configXMLs_[paramType]);
@@ -854,6 +856,23 @@ void OREApp::getConfig(XMLSerializable& paramObject, const std::string paramSect
     }
 }
 
+void OREApp::setConfigXML(const std::string paramType, const std::string oreParamsXML) {
+    configXMLs_[paramType] = oreParamsXML;
+    if (paramType == "ORE") {
+        XMLDocument doc = XMLDocument();
+        try {
+            doc.fromXMLString(configXMLs_[paramType]);
+            params_ = boost::make_shared<Parameters>();
+            params_->fromXML(doc.getFirstNode("ORE"));
+            asof_ = parseDate(params_->get("setup", "asofDate"));
+            Settings::instance().evaluationDate() = asof_;
+        } catch (std::exception& e) {
+            ALOG("Error: " << e.what());
+            out_ << "Error: " << e.what() << endl;
+        }
+    }
+}
+
 void OREApp::getPortfolio(boost::shared_ptr<Portfolio> portfolio, bool buildPortfolio) {
     if (params_->has("setup", "portfolioFile") && params_->get("setup", "portfolioFile") != "") {
         string portfoliosString = params_->get("setup", "portfolioFile");
@@ -861,29 +880,24 @@ void OREApp::getPortfolio(boost::shared_ptr<Portfolio> portfolio, bool buildPort
         for (auto portfolioFile : portfolioFiles) {
             if (buildPortfolio) {
                 portfolio->load(portfolioFile, buildTradeFactory());
-            }
-            else {
+            } else {
                 portfolio->load(portfolioFile);
             }
         }
-    }
-    else if (configXMLs_.count("portfolio") > 0) {
+    } else if (configXMLs_.count("portfolio") > 0) {
         LOG("Get portfolio data from XML String in configXMLs_");
         // test the portfolio XML for general validity.
         try {
             portfolio->loadFromXMLString(configXMLs_["portfolio"]);
-        }
-        catch (std::exception& e) {
+        } catch (std::exception& e) {
             ALOG("Error: " << e.what());
             out_ << "Error: " << e.what() << endl;
         }
-    }
-    else {
+    } else {
         out_ << "No portfolio !" << endl;
         WLOG("No portfolio loaded from file or XML!");
     }
 }
-
 
 } // namespace analytics
 } // namespace ore

@@ -38,6 +38,7 @@
     <ClInclude Include="aggregationscenariodata.hpp" />
     <ClInclude Include="cube.hpp" />
     <ClInclude Include="observationmode.hpp" />
+    <ClInclude Include="oreInMem.hpp" />
     <ClInclude Include="scenariogenerator.hpp" />
     <ClInclude Include="scenariosimmarket.hpp" />
     <ClInclude Include="sensitivityanalysis.hpp" />
@@ -52,6 +53,7 @@
     <ClCompile Include="aggregationscenariodata.cpp" />
     <ClCompile Include="cube.cpp" />
     <ClCompile Include="observationmode.cpp" />
+    <ClCompile Include="oreInMem.cpp" />
     <ClCompile Include="scenariogenerator.cpp" />
     <ClCompile Include="scenariosimmarket.cpp" />
     <ClCompile Include="sensitivityanalysis.cpp" />

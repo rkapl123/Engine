@@ -55,6 +55,11 @@ public:
         asof_ = parseDate(params->get("setup", "asofDate"));
         Settings::instance().evaluationDate() = asof_;
     }
+    OREApp(std::ostream& out = std::cout)
+        : out_(out), cubeDepth_(0) {
+        tab_ = 40;
+        progressBarWidth_ = 72 - std::min<Size>(tab_, 67);
+    }
     virtual ~OREApp() {}
     //! generates XVA reports for a given portfolio and market
     int run();
@@ -125,7 +130,8 @@ public:
 
     //! write out additional reports
     virtual void writeAdditionalReports() {}
-
+    //! set config XML Strings for in memory start
+    void setConfigXML(const std::string paramType, const std::string oreParamsXML);
 protected:
     //! Get report writer
     virtual boost::shared_ptr<ReportWriter> getReportWriter();
@@ -149,10 +155,10 @@ protected:
     virtual boost::shared_ptr<Report> getReport(const std::string paramSection, const std::string paramType, const std::string fullPath);
     void getConfig(XMLSerializable& paramObject, const std::string paramSection, const std::string paramType);
     void getPortfolio(boost::shared_ptr<Portfolio> portfolio, bool buildPortfolio);
+    map<string, string> configXMLs_;     // Input XML parameters for in-memory start
     Size tab_, progressBarWidth_;
     Date asof_;
     //! ORE Input parameters
-    map<string, string> configXMLs_;     // Input XML for in memory start
     boost::shared_ptr<Parameters> params_;
     std::ostream& out_;
     bool writeInitialReports_;

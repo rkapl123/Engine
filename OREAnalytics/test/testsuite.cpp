@@ -66,6 +66,7 @@ using boost::unit_test::test_suite;
 #include "sensitivityperformance.hpp"
 #include "stresstest.hpp"
 #include "swapperformance.hpp"
+#include "oreInMem.hpp"
 
 namespace {
 
@@ -105,6 +106,7 @@ test_suite* init_unit_test_suite(int, char* []) {
     test_suite* test = BOOST_TEST_SUITE("OREAnalyticsTestSuite");
 
     test->add(BOOST_TEST_CASE(startTimer));
+    test->add(testsuite::OreInMemTest::suite());
     test->add(testsuite::AggregationScenarioDataTest::suite());
     test->add(testsuite::CubeTest::suite());
     test->add(testsuite::ScenarioSimMarketTest::suite());
