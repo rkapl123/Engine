@@ -20,6 +20,7 @@
 #include <qle/cashflows/averageonindexedcouponpricer.hpp>
 #include <qle/cashflows/subperiodscouponpricer.hpp>
 #include <qle/cashflows/brlcdicouponpricer.hpp>
+#include <../oebfaspc/qle/cashflows/cmsspread3coupon.hpp>
 
 namespace QuantExt {
 
@@ -30,7 +31,8 @@ class PricerSetter : public AcyclicVisitor,
                      public Visitor<Coupon>,
                      public Visitor<OvernightIndexedCoupon>,
                      public Visitor<AverageONIndexedCoupon>,
-                     public Visitor<SubPeriodsCoupon> {
+                     public Visitor<SubPeriodsCoupon>,
+                     public Visitor<CmsSpread3Coupon> {
 private:
     const boost::shared_ptr<FloatingRateCouponPricer> pricer_;
 
@@ -42,6 +44,7 @@ public:
     void visit(OvernightIndexedCoupon& c);
     void visit(AverageONIndexedCoupon& c);
     void visit(SubPeriodsCoupon& c);
+    void visit(CmsSpread3Coupon& c);
 };
 
 void PricerSetter::visit(CashFlow&) {
@@ -77,6 +80,13 @@ void PricerSetter::visit(SubPeriodsCoupon& c) {
         boost::dynamic_pointer_cast<SubPeriodsCouponPricer>(pricer_);
     QL_REQUIRE(subPeriodsCouponPricer, "Pricer not compatible with sub-periods coupon");
     c.setPricer(subPeriodsCouponPricer);
+}
+
+void PricerSetter::visit(CmsSpread3Coupon& c) {
+    const boost::shared_ptr<CmsSpread3CouponPricer> cmsSpread3CouponPricer =
+        boost::dynamic_pointer_cast<CmsSpread3CouponPricer>(pricer_);
+    QL_REQUIRE(cmsSpread3CouponPricer, "Pricer not compatible with cmsSpread3 coupon");
+    c.setPricer(cmsSpread3CouponPricer);
 }
 } // namespace
 

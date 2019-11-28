@@ -23,6 +23,7 @@
 #include <ored/portfolio/legdata.hpp>
 #include <ored/utilities/log.hpp>
 #include <ored/utilities/to_string.hpp>
+#include <../oebfaspc/ored/portfolio/builders/cmsspread3.hpp>
 
 #include <boost/make_shared.hpp>
 #include <ql/cashflow.hpp>
@@ -51,6 +52,7 @@
 #include <qle/cashflows/subperiodscouponpricer.hpp>
 #include <qle/indexes/bmaindexwrapper.hpp>
 #include <qle/cashflows/couponpricer.hpp>
+#include <../oebfaspc/qle/cashflows/cmsspread3coupon.hpp>
 
 using namespace QuantLib;
 using namespace QuantExt;
@@ -466,6 +468,48 @@ void LegData::fromXML(XMLNode* node) {
     indices_.insert(concreteLegData_->indices().begin(), concreteLegData_->indices().end());
 }
 
+XMLNode* CMSSpread3LegData::toXML(XMLDocument& doc) {
+    XMLNode* node = doc.allocNode(legNodeName());
+    XMLUtils::addChild(doc, node, "Index1", swapIndex1_);
+    XMLUtils::addChild(doc, node, "Index2", swapIndex2_);
+    XMLUtils::addChild(doc, node, "Index3", swapIndex3_);
+    XMLUtils::addChild(doc, node, "IsInArrears", isInArrears_);
+    XMLUtils::addChild(doc, node, "FixingDays", fixingDays_);
+    XMLUtils::addChildrenWithOptionalAttributes(doc, node, "Gearings", "Gearing", gearings_, "startDate",
+                                                gearingDates_);
+    XMLUtils::addChildrenWithOptionalAttributes(doc, node, "Spreads", "Spread", spreads_, "startDate", spreadDates_);
+    XMLUtils::addChild(doc, node, "NakedOption", nakedOption_);
+    XMLUtils::addChild(doc, node, "structchoice", structchoice_);
+    XMLUtils::addChild(doc, node, "Strike", strike_);
+    XMLUtils::addChild(doc, node, "Cap", cap_);
+    XMLUtils::addChild(doc, node, "Floor", floor_);
+    XMLUtils::addChild(doc, node, "Elseconstant", elseconstant_);
+    return node;
+}
+
+void CMSSpread3LegData::fromXML(XMLNode* node) {
+    XMLUtils::checkNode(node, legNodeName());
+    swapIndex1_ = XMLUtils::getChildValue(node, "Index1", true);
+    swapIndex2_ = XMLUtils::getChildValue(node, "Index2", true);
+    swapIndex3_ = XMLUtils::getChildValue(node, "Index3", true);
+    spreads_ =
+        XMLUtils::getChildrenValuesAsDoublesWithAttributes(node, "Spreads", "Spread", "startDate", spreadDates_, true);
+    // These are all optional
+    XMLNode* arrNode = XMLUtils::getChildNode(node, "IsInArrears");
+    if (arrNode)
+        isInArrears_ = XMLUtils::getChildValueAsBool(node, "IsInArrears", true);
+    else
+        isInArrears_ = false;                                       // default to fixing-in-advance
+    fixingDays_ = XMLUtils::getChildValueAsInt(node, "FixingDays"); // defaults to 0
+    gearings_ =
+        XMLUtils::getChildrenValuesAsDoublesWithAttributes(node, "Gearings", "Gearing", "startDate", gearingDates_);
+    if (XMLUtils::getChildNode(node, "NakedOption"))
+        nakedOption_ = XMLUtils::getChildValueAsBool(node, "NakedOption", false);
+    else
+        nakedOption_ = false;
+    structchoice_ = XMLUtils::getChildValueAsInt(node, "structtype"); // defaults to 1
+}
+
 boost::shared_ptr<LegAdditionalData> LegData::initialiseConcreteLegData(const string& legType) {
     if (legType == "Fixed") {
         return boost::make_shared<FixedLegData>();
@@ -487,6 +531,8 @@ boost::shared_ptr<LegAdditionalData> LegData::initialiseConcreteLegData(const st
         return boost::make_shared<DigitalCMSSpreadLegData>();
     } else if (legType == "Equity") {
         return boost::make_shared<EquityLegData>();
+    } else if (legType == "CMSSpread3") {
+        return boost::make_shared<CMSSpread3LegData>();
     } else {
         QL_FAIL("Unkown leg type " << legType);
     }
@@ -1250,6 +1296,59 @@ Leg makeEquityLeg(const LegData& data, const boost::shared_ptr<EquityIndex>& equ
 
     return leg;
 }
+
+Leg makeCMSSpread3Leg(const LegData& data, const boost::shared_ptr<QuantExt::SwapSpread3Index>& swapSpreadIndex,
+                      const boost::shared_ptr<EngineFactory>& engineFactory, const bool attachPricer) {
+#if QL_HEX_VERSION < 0x011300f0
+    WLOG("The CMS Spread implementation in older QL versions has issues, consider upgrading to at least 1.13")
+#endif
+    boost::shared_ptr<CMSSpread3LegData> cmsSpread3Data =
+        boost::dynamic_pointer_cast<CMSSpread3LegData>(data.concreteLegData());
+    QL_REQUIRE(cmsSpread3Data, "Wrong LegType, expected CMSSpread3, got " << data.legType());
+
+    Schedule schedule = makeSchedule(data.schedule());
+    DayCounter dc = parseDayCounter(data.dayCounter());
+    BusinessDayConvention bdc = parseBusinessDayConvention(data.paymentConvention());
+    vector<double> spreads =
+        ore::data::buildScheduledVector(cmsSpread3Data->spreads(), cmsSpread3Data->spreadDates(), schedule);
+    QuantExt::CmsSpread3Leg cmsSpreadLeg = QuantExt::CmsSpread3Leg(schedule, swapSpreadIndex)
+                                               .withNotionals(data.notionals())
+                                               .withSpreads(spreads)
+                                               .withPaymentDayCounter(dc)
+                                               .withPaymentAdjustment(bdc)
+                                               .withFixingDays(cmsSpread3Data->fixingDays())
+                                               .inArrears(cmsSpread3Data->isInArrears());
+
+    if (cmsSpread3Data->gearings().size() > 0)
+        cmsSpreadLeg.withGearings(
+            buildScheduledVector(cmsSpread3Data->gearings(), cmsSpread3Data->gearingDates(), schedule));
+
+    if (!attachPricer)
+        return cmsSpreadLeg;
+
+    // Get a coupon pricer for the leg
+    auto builder1 = engineFactory->builder("CMS");
+    QL_REQUIRE(builder1, "No CMS builder found for CmsSpreadLeg");
+    auto cmsBuilder = boost::dynamic_pointer_cast<CmsCouponPricerBuilder>(builder1);
+    auto cmsPricer = boost::dynamic_pointer_cast<CmsCouponPricer>(cmsBuilder->engine(swapSpreadIndex->currency()));
+    QL_REQUIRE(cmsPricer, "Expected CMS Pricer");
+    auto builder2 = engineFactory->builder("CMSSpread3");
+    QL_REQUIRE(builder2, "No CMS Spread 3 builder found for CmsSpreadLeg");
+    auto cmsSpreadBuilder = boost::dynamic_pointer_cast<CmsSpread3CouponPricerBuilder>(builder2);
+    auto cmsSpreadPricer = cmsSpreadBuilder->engine(swapSpreadIndex->currency(), cmsPricer);
+    QL_REQUIRE(cmsSpreadPricer, "Expected CMS Spread Pricer");
+
+    // Loop over the coupons in the leg and set pricer
+    Leg tmpLeg = cmsSpreadLeg;
+    QuantExt::setCouponPricer(tmpLeg, cmsSpreadPricer);
+
+    // build naked option leg if required
+    if (cmsSpread3Data->nakedOption()) {
+        tmpLeg = StrippedCappedFlooredCouponLeg(tmpLeg);
+    }
+    return tmpLeg;
+}
+
 
 Real currentNotional(const Leg& leg) {
     Date today = Settings::instance().evaluationDate();

@@ -33,6 +33,7 @@
 #include <ql/indexes/iborindex.hpp>
 #include <qle/indexes/bmaindexwrapper.hpp>
 #include <qle/indexes/equityindex.hpp>
+#include <../oebfaspc/qle/indexes/swapspread3index.hpp>
 
 #include <vector>
 
@@ -67,6 +68,67 @@ private:
     string legType_;
     string legNodeName_; // the XML node name
 };
+
+//! Serializable CMS Spread 3 Leg Data
+/*!
+\ingroup tradedata
+*/
+class CMSSpread3LegData : public LegAdditionalData {
+public:
+    //! Default constructor
+    CMSSpread3LegData() : LegAdditionalData("CMSSpread3"), fixingDays_(0), isInArrears_(true), nakedOption_(false) {}
+    //! Constructor
+    CMSSpread3LegData(const string& swapIndex1, const string& swapIndex2, const string& swapIndex3, int fixingDays,
+                      bool isInArrears, const vector<double>& spreads,
+                      const vector<string>& spreadDates = vector<string>(),
+                      const vector<double>& gearings = vector<double>(),
+                      const vector<string>& gearingDates = vector<string>(), bool nakedOption = false, int structchoice = 1)
+        : LegAdditionalData("CMSSpread3"), swapIndex1_(swapIndex1), swapIndex2_(swapIndex2), swapIndex3_(swapIndex3),
+          fixingDays_(fixingDays), isInArrears_(isInArrears), spreads_(spreads), spreadDates_(spreadDates),
+          gearings_(gearings), gearingDates_(gearingDates), nakedOption_(nakedOption), structchoice_(structchoice) {}
+
+    //! \name Inspectors
+    //@{
+    const string& swapIndex1() const { return swapIndex1_; }
+    const string& swapIndex2() const { return swapIndex2_; }
+    const string& swapIndex3() const { return swapIndex3_; }
+    int fixingDays() const { return fixingDays_; }
+    bool isInArrears() const { return isInArrears_; }
+    const vector<double>& spreads() const { return spreads_; }
+    const vector<string>& spreadDates() const { return spreadDates_; }
+    const vector<double>& gearings() const { return gearings_; }
+    const vector<string>& gearingDates() const { return gearingDates_; }
+    bool nakedOption() const { return nakedOption_; }
+    int structchoice() const { return structchoice_; }
+    double strike() const { return strike_; }
+    double cap() const { return cap_; }
+    double floor() const { return floor_; }
+    double elseconstant() const { return elseconstant_; }
+    //@}
+
+    //! \name Serialisation
+    //@{
+    virtual void fromXML(XMLNode* node);
+    virtual XMLNode* toXML(XMLDocument& doc);
+    //@}
+private:
+    string swapIndex1_;
+    string swapIndex2_;
+    string swapIndex3_;
+    int fixingDays_;
+    bool isInArrears_;
+    vector<double> spreads_;
+    vector<string> spreadDates_;
+    vector<double> gearings_;
+    vector<string> gearingDates_;
+    bool nakedOption_;
+    int structchoice_;
+    double strike_;
+    double cap_;
+    double floor_;
+    double elseconstant_;
+};
+
 
 //! Serializable Cashflow Leg Data
 /*!
@@ -697,6 +759,8 @@ Leg makeDigitalCMSSpreadLeg(const LegData& data, const boost::shared_ptr<QuantLi
                             const boost::shared_ptr<EngineFactory>& engineFactory);
 Leg makeEquityLeg(const LegData& data, const boost::shared_ptr<QuantExt::EquityIndex>& equityCurve);
 Real currentNotional(const Leg& leg);
+Leg makeCMSSpread3Leg(const LegData& data, const boost::shared_ptr<QuantExt::SwapSpread3Index>& swapSpreadIndex,
+                      const boost::shared_ptr<EngineFactory>& engineFactory, const bool attachPricer = true);
 
 //@}
 

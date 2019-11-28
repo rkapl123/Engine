@@ -164,6 +164,19 @@
       <Parameter name="IntegrationPoints">16</Parameter>
     </EngineParameters>
   </Product>
+  <Product type="CMSSpread3">
+    <Model>ZeroVol</Model>
+    <ModelParameters>
+      <Parameter name="Correlation_EUR">0.8</Parameter>
+      <Parameter name="Correlation_USD">0.75</Parameter>
+      <Parameter name="Correlation_GBP">0.72</Parameter>
+      <Parameter name="Correlation_CHF">0.7</Parameter>
+    </ModelParameters>
+    <Engine>Analytic</Engine>
+    <EngineParameters>
+      <Parameter name="IntegrationPoints">16</Parameter>
+    </EngineParameters>
+  </Product>
   <Product type="CommodityForward">
     <Model>DiscountedCashflows</Model>
     <ModelParameters/>

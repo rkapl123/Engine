@@ -32,6 +32,7 @@
 #include <qle/cashflows/averageonindexedcoupon.hpp>
 #include <qle/cashflows/floatingratefxlinkednotionalcoupon.hpp>
 #include <qle/cashflows/fxlinkedcashflow.hpp>
+#include <../oebfaspc/qle/cashflows/cmsspread3coupon.hpp>
 
 using namespace std;
 using namespace QuantLib;
@@ -99,6 +100,13 @@ void FixingManager::processCashFlows(const boost::shared_ptr<QuantLib::CashFlow>
             fixingMap_
                 [boost::dynamic_pointer_cast<CmsSpreadCoupon>(dcmssp->underlying())->swapSpreadIndex()->swapIndex2()]
                     .insert(frc->fixingDate());
+            return;
+        }
+        auto cmssp3 = boost::dynamic_pointer_cast<CmsSpread3Coupon>(frc);
+        if (cmssp3) {
+            fixingMap_[cmssp3->swapSpreadIndex()->swapIndex1()].insert(frc->fixingDate());
+            fixingMap_[cmssp3->swapSpreadIndex()->swapIndex2()].insert(frc->fixingDate());
+            fixingMap_[cmssp3->swapSpreadIndex()->swapIndex3()].insert(frc->fixingDate());
             return;
         }
 

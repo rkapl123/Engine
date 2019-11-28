@@ -38,6 +38,8 @@
 #include <orea/scenario/scenariosimmarketparameters.hpp>
 #include <ored/ored.hpp>
 #include <ored/portfolio/tradefactory.hpp>
+#include <../oebfaspc/ored/portfolio/builders/cmsspread3.hpp>
+#include <../oebfaspc/ored/portfolio/cmsspread3legbuilder.hpp>
 
 namespace ore {
 namespace analytics {
@@ -164,9 +166,17 @@ protected:
     //! Get sensitivity runner
     virtual boost::shared_ptr<SensitivityRunner> getSensitivityRunner();
     //! Add extra engine builders
-    virtual std::vector<boost::shared_ptr<EngineBuilder>> getExtraEngineBuilders() const { return {}; };
+    virtual std::vector<boost::shared_ptr<EngineBuilder>> getExtraEngineBuilders() const {
+        return {
+            boost::make_shared<CmsSpread3CouponPricerBuilder>()
+        };
+    };
     //! Add extra leg builders
-    virtual std::vector<boost::shared_ptr<LegBuilder>> getExtraLegBuilders() const { return {}; };
+    virtual std::vector<boost::shared_ptr<LegBuilder>> getExtraLegBuilders() const {
+        return {
+            boost::make_shared<CMSSpread3LegBuilder>()
+        };
+    };
     //! Add extra trade builders
     virtual std::map<std::string, boost::shared_ptr<AbstractTradeBuilder>> getExtraTradeBuilders() const { return {}; };
     //! Get fixing manager

@@ -675,6 +675,15 @@
     <ClInclude Include="qle\cashflows\strippedcapflooredyoyinflationcoupon.hpp">
       <Filter>cashflows</Filter>
     </ClInclude>
+    <ClInclude Include="..\oebfaspc\qle\cashflows\cmsspread3coupon.hpp">
+      <Filter>oebfaspc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\oebfaspc\qle\cashflows\lognormalcmsspreadpricerGen.hpp">
+      <Filter>oebfaspc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\oebfaspc\qle\indexes\swapspread3index.hpp">
+      <Filter>oebfaspc</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="cashflows">
@@ -721,6 +730,9 @@
     </Filter>
     <Filter Include="time\calendars">
       <UniqueIdentifier>{127ebe18-cbb6-4387-b8ac-95cae7669e94}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="oebfaspc">
+      <UniqueIdentifier>{94f6da88-31a9-4080-b3bd-090d487f24ea}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -1164,6 +1176,15 @@
     </ClCompile>
     <ClCompile Include="qle\cashflows\strippedcapflooredyoyinflationcoupon.cpp">
       <Filter>cashflows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\oebfaspc\qle\cashflows\cmsspread3coupon.cpp">
+      <Filter>oebfaspc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\oebfaspc\qle\cashflows\lognormalcmsspreadpricerGen.cpp">
+      <Filter>oebfaspc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\oebfaspc\qle\indexes\swapspread3index.cpp">
+      <Filter>oebfaspc</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
