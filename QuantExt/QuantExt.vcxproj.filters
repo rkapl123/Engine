@@ -684,6 +684,9 @@
     <ClInclude Include="..\oebfaspc\qle\indexes\swapspread3index.hpp">
       <Filter>oebfaspc</Filter>
     </ClInclude>
+    <ClInclude Include="qle\calendars\austria.hpp">
+      <Filter>time\calendars</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="cashflows">
@@ -1185,6 +1188,9 @@
     </ClCompile>
     <ClCompile Include="..\oebfaspc\qle\indexes\swapspread3index.cpp">
       <Filter>oebfaspc</Filter>
+    </ClCompile>
+    <ClCompile Include="qle\calendars\austria.cpp">
+      <Filter>time\calendars</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

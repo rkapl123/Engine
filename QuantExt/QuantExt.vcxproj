@@ -493,6 +493,7 @@
     <ClInclude Include="..\oebfaspc\qle\cashflows\lognormalcmsspreadpricerGen.hpp" />
     <ClInclude Include="..\oebfaspc\qle\indexes\swapspread3index.hpp" />
     <ClInclude Include="qle\auto_link.hpp" />
+    <ClInclude Include="qle\calendars\austria.hpp" />
     <ClInclude Include="qle\calendars\chile.hpp" />
     <ClInclude Include="qle\calendars\colombia.hpp" />
     <ClInclude Include="qle\calendars\france.hpp" />
@@ -718,6 +719,7 @@
     <ClCompile Include="..\oebfaspc\qle\cashflows\cmsspread3coupon.cpp" />
     <ClCompile Include="..\oebfaspc\qle\cashflows\lognormalcmsspreadpricerGen.cpp" />
     <ClCompile Include="..\oebfaspc\qle\indexes\swapspread3index.cpp" />
+    <ClCompile Include="qle\calendars\austria.cpp" />
     <ClCompile Include="qle\calendars\chile.cpp" />
     <ClCompile Include="qle\calendars\colombia.cpp" />
     <ClCompile Include="qle\calendars\france.cpp" />
