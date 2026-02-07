@@ -98,9 +98,29 @@ SimmCalculator::SimmCalculator(const QuantLib::ext::shared_ptr<ore::analytics::C
                "SIMM Calculator: The result currency (" << resultCcy_ << ") must be a valid ISO currency code");
 
     timer_.start("Cleaning up CRIF input");
+    std::map<RiskType,std::map<std::string, std::set<string>>> qualifierBuckets;
+    std::map<RiskType,std::map<std::string, int>> nbQualiferBucket;
+    auto simmbucketmapper = simmConfiguration_->bucketMapper();
+
+    // We loop over the crif to extract (qualifier,bucket) per risk type
+    for (SlimCrifRecordContainer::iterator it = crif->begin(); it != crif->end(); it++) {
+        if (it->riskType() == RiskType::Empty || it->riskType() == RiskType::FX || it->getBucket()=="") {
+            continue;
+        }
+        qualifierBuckets[it->riskType()][it->getQualifier()].insert(it->getBucket());
+    }
+    // Now, count number of unique buckets per qualifier per risk type
+    // Meaning we want to detect if we have situation like CreditQ, qualifier = "None" having multiple buckets
+    for (const auto& riskType: qualifierBuckets) {
+        for(const auto& qualifBucket: riskType.second){
+            nbQualiferBucket[riskType.first][qualifBucket.first] = qualifBucket.second.size();
+        }
+    }
+    auto copyCrif = QuantLib::ext::make_shared<ore::analytics::Crif>();
     for (SlimCrifRecordContainer::iterator it = crif->begin(); it != crif->end(); it++) {
         // Remove empty
         if (it->riskType() == RiskType::Empty) {
+            copyCrif->insert(*it);
             continue;
         }
         // Remove Schedule-only CRIF records
@@ -111,6 +131,7 @@ SimmCalculator::SimmCalculator(const QuantLib::ext::shared_ptr<ore::analytics::C
                                                          "Skipping over Schedule CRIF record")
                     .log();
             }
+            copyCrif->insert(*it);
             continue;
         }
 
@@ -139,7 +160,21 @@ SimmCalculator::SimmCalculator(const QuantLib::ext::shared_ptr<ore::analytics::C
             it->setAmountResultCurrency(fxSpot * it->amount());
         }
         it->setResultCurrency(resultCcy_);
+        auto riskType = it->riskType();
+        string qualifierToUse = it->getQualifier();
+        if (nbQualiferBucket[riskType][qualifierToUse]>1) {
+            qualifierToUse = it->getQualifier() + "_" + it->getBucket();
+            simmbucketmapper->addMapping(riskType, qualifierToUse, it->getBucket());
+            ore::data::StructuredTradeWarningMessage(it->getTradeId(), "simmcalculator", "Qualifier Name Changed for risk type "+ore::data::to_string(riskType)+ " From "+ it->getQualifier() + " To " + qualifierToUse, 
+                                                    "A qualifier for a same risk type has different buckets within the CRIF.");
+            SlimCrifRecord recordCopy = *it;
+            recordCopy.setQualifier(qualifierToUse);
+            copyCrif->insert(recordCopy);
+        }else{
+            copyCrif->insert(*it);
+        }
     }
+
     timer_.stop("Cleaning up CRIF input");
 
     // Add CRIF records to each regulation under each netting set
@@ -147,7 +182,7 @@ SimmCalculator::SimmCalculator(const QuantLib::ext::shared_ptr<ore::analytics::C
         LOG("SimmCalculator: Splitting up original CRIF records into their respective collect/post regulations");
     }
 
-    splitCrifByRegulationsAndPortfolios(enforceIMRegulations, crif);
+    splitCrifByRegulationsAndPortfolios(enforceIMRegulations, copyCrif);
 
     cleanDuplicateRegulations();
 
@@ -466,16 +501,12 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irDeltaMargin(const Nett
     map<string, QuantLib::Real> sumWeightedSensis;
 
     // Loop over the qualifiers i.e. currencies
-    // Loop over the qualifiers i.e. currencies
     for (const auto& qualifier : qualifiers) {
         // Pair of iterators to start and end of IRCurve sensitivities with current qualifier
         auto pIrQualifier = crif.filterByQualifier(nettingSetDetails, pc, RiskType::IRCurve, qualifier);
 
-        // Iterator to Xccy basis element with current qualifier (expect zero or one element)
+        // Iterator to Xccy basis element with current qualifier
         auto XccyCount = crif.countMatching(nettingSetDetails, pc, RiskType::XCcyBasis, qualifier);
-        QL_REQUIRE(XccyCount < 2, "SIMM Calcuator: Expected either 0 or 1 elements for risk type "
-                                      << RiskType::XCcyBasis << " and qualifier " << qualifier << " but got "
-                                      << XccyCount);
         const auto& [itXccy, itXccyEnd] = crif.findBy(nettingSetDetails, pc, RiskType::XCcyBasis, qualifier);
 
         // Iterator to inflation element with current qualifier (expect zero or one element)
@@ -516,13 +547,13 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irDeltaMargin(const Nett
             // Add the cross elements to the delta margin
             for (auto itInner = pIrQualifier.first; itInner != itOuter; ++itInner) {
                 // Label2 level correlation i.e. $\phi_{i,j}$ from SIMM docs
-                QuantLib::Real subCurveCorr =
-                    simmConfiguration_->correlation(RiskType::IRCurve, qualifier, "", itOuter->getLabel2(),
-                                                    RiskType::IRCurve, qualifier, "", itInner->getLabel2());
+                QuantLib::Real subCurveCorr = simmConfiguration_->correlation(
+                    RiskType::IRCurve, qualifier, "", "", itOuter->getLabel2(), RiskType::IRCurve, qualifier, "", "",
+                    itInner->getLabel2(), calcCcy);
                 // Label1 level correlation i.e. $\rho_{k,l}$ from SIMM docs
-                QuantLib::Real tenorCorr =
-                    simmConfiguration_->correlation(RiskType::IRCurve, qualifier, itOuter->getLabel1(), "",
-                                                    RiskType::IRCurve, qualifier, itInner->getLabel1(), "");
+                QuantLib::Real tenorCorr = simmConfiguration_->correlation(
+                    RiskType::IRCurve, qualifier, "", itOuter->getLabel1(), "", RiskType::IRCurve, qualifier, "",
+                    itInner->getLabel1(), "", calcCcy);
                 // Add cross element to delta margin
                 QuantLib::Real rwInner = simmConfiguration_->weight(RiskType::IRCurve, qualifier, itInner->getLabel1());
                 QuantLib::Real wsInner = rwInner * itInner->amountResultCurrency() * concentrationRisk[qualifier];
@@ -544,8 +575,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irDeltaMargin(const Nett
             deltaMargin[qualifier] += wsInflation * wsInflation;
             // Add the cross elements (Inflation with IRCurve tenors) to the delta margin
             // Correlation (know that Label1 and Label2 do not matter)
-            QuantLib::Real corr = simmConfiguration_->correlation(RiskType::IRCurve, qualifier, "", "",
-                                                                  RiskType::Inflation, qualifier, "", "");
+            QuantLib::Real corr = simmConfiguration_->correlation(RiskType::IRCurve, qualifier, "", "", "",
+                                                                  RiskType::Inflation, qualifier, "", "", "", calcCcy);
             for (auto it = pIrQualifier.first; it != pIrQualifier.second; ++it) {
                 // Add cross element to delta margin
                 QuantLib::Real rw = simmConfiguration_->weight(RiskType::IRCurve, qualifier, it->getLabel1());
@@ -559,15 +590,26 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irDeltaMargin(const Nett
             // Risk weight
             QuantLib::Real rwXccy = simmConfiguration_->weight(RiskType::XCcyBasis, qualifier, itXccy->getLabel1());
             // Weighted sensitivity (no concentration risk here)
-            QuantLib::Real wsXccy = rwXccy * itXccy->amountResultCurrency();
+            QuantLib::Real wsXccy = 0;
+            if(XccyCount>1){
+                Real cumXccyAmount = 0;
+                for(auto it = itXccy; it != itXccyEnd; it++){
+                    if(it->riskType() == RiskType::XCcyBasis){
+                        cumXccyAmount+=it->amountResultCurrency();
+                    }
+                }
+                wsXccy = rwXccy * cumXccyAmount;
+            }else{
+                wsXccy = rwXccy * itXccy->amountResultCurrency();
+            }
             // Update weighted sensitivity sum
             sumWeightedSensis[qualifier] += wsXccy;
             // Add diagonal element to delta margin
             deltaMargin[qualifier] += wsXccy * wsXccy;
             // Add the cross elements (XccyBasis with IRCurve tenors) to the delta margin
             // Correlation (know that Label1 and Label2 do not matter)
-            QuantLib::Real corr = simmConfiguration_->correlation(RiskType::IRCurve, qualifier, "", "",
-                                                                  RiskType::XCcyBasis, qualifier, "", "");
+            QuantLib::Real corr = simmConfiguration_->correlation(RiskType::IRCurve, qualifier, "", "", "",
+                                                                  RiskType::XCcyBasis, qualifier, "", "", "", calcCcy);
             for (auto it = pIrQualifier.first; it != pIrQualifier.second; ++it) {
                 // Add cross element to delta margin
                 QuantLib::Real rw = simmConfiguration_->weight(RiskType::IRCurve, qualifier, it->getLabel1(), calcCcy);
@@ -578,8 +620,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irDeltaMargin(const Nett
             // Inflation vs. XccyBasis cross component if any
             if (itInflation != itInflationEnd) {
                 // Correlation (know that Label1 and Label2 do not matter)
-                QuantLib::Real corr = simmConfiguration_->correlation(RiskType::Inflation, qualifier, "", "",
-                                                                      RiskType::XCcyBasis, qualifier, "", "");
+                QuantLib::Real corr = simmConfiguration_->correlation(
+                    RiskType::Inflation, qualifier, "", "", "", RiskType::XCcyBasis, qualifier, "", "", "", calcCcy);
                 deltaMargin[qualifier] += 2 * corr * wsInflation * wsXccy;
             }
         }
@@ -601,8 +643,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irDeltaMargin(const Nett
                 std::max(std::min(sumWeightedSensis.at(*itInner), deltaMargin.at(*itInner)), -deltaMargin.at(*itInner));
             QuantLib::Real g = std::min(concentrationRisk.at(*itOuter), concentrationRisk.at(*itInner)) /
                                std::max(concentrationRisk.at(*itOuter), concentrationRisk.at(*itInner));
-            QuantLib::Real corr = simmConfiguration_->correlation(RiskType::IRCurve, *itOuter, "", "",
-                                                                  RiskType::IRCurve, *itInner, "", "");
+            QuantLib::Real corr = simmConfiguration_->correlation(RiskType::IRCurve, *itOuter, "", "", "",
+                                                                  RiskType::IRCurve, *itInner, "", "", "", calcCcy);
             margin += 2.0 * sOuter * sInner * corr * g;
         }
     }
@@ -684,8 +726,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irVegaMargin(const Netti
             for (auto itInner = pIrQualifier.first; itInner != itOuter; ++itInner) {
                 // Label1 level correlation i.e. $\rho_{k,l}$ from SIMM docs
                 QuantLib::Real corr =
-                    simmConfiguration_->correlation(RiskType::IRVol, qualifier, itOuter->getLabel1(), "",
-                                                    RiskType::IRVol, qualifier, itInner->getLabel1(), "");
+                    simmConfiguration_->correlation(RiskType::IRVol, qualifier, "", itOuter->getLabel1(), "",
+                                                    RiskType::IRVol, qualifier, "", itInner->getLabel1(), "", calcCcy);
                 // Add cross element to vega margin
                 QuantLib::Real rwInner = simmConfiguration_->weight(RiskType::IRVol, qualifier, itInner->getLabel1());
                 QuantLib::Real wsInner = rwInner * itInner->amountResultCurrency() * concentrationRisk[qualifier];
@@ -711,8 +753,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irVegaMargin(const Netti
             for (auto itInner = pIrQualifier.first; itInner != pIrQualifier.second; ++itInner) {
                 // Correlation i.e. $\rho_{k,l}$ from SIMM docs
                 QuantLib::Real corr =
-                    simmConfiguration_->correlation(RiskType::InflationVol, qualifier, itOuter->getLabel1(), "",
-                                                    RiskType::IRVol, qualifier, itInner->getLabel1(), "");
+                    simmConfiguration_->correlation(RiskType::InflationVol, qualifier, "", itOuter->getLabel1(), "",
+                                                    RiskType::IRVol, qualifier, "", itInner->getLabel1(), "", calcCcy);
                 // Add cross element to vega margin
                 QuantLib::Real rwInner = simmConfiguration_->weight(RiskType::IRVol, qualifier, itInner->getLabel1());
                 QuantLib::Real wsInner = rwInner * itInner->amountResultCurrency() * concentrationRisk[qualifier];
@@ -721,9 +763,9 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irVegaMargin(const Netti
             // Secondly, against all previous InflationVol components
             for (auto itInner = pInfQualifier.first; itInner != itOuter; ++itInner) {
                 // Correlation i.e. $\rho_{k,l}$ from SIMM docs
-                QuantLib::Real corr =
-                    simmConfiguration_->correlation(RiskType::InflationVol, qualifier, itOuter->getLabel1(), "",
-                                                    RiskType::InflationVol, qualifier, itInner->getLabel1(), "");
+                QuantLib::Real corr = simmConfiguration_->correlation(RiskType::InflationVol, qualifier, "",
+                                                                      itOuter->getLabel1(), "", RiskType::InflationVol,
+                                                                      qualifier, "", itInner->getLabel1(), "", calcCcy);
                 // Add cross element to vega margin
                 QuantLib::Real rwInner =
                     simmConfiguration_->weight(RiskType::InflationVol, qualifier, itInner->getLabel1());
@@ -749,8 +791,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irVegaMargin(const Netti
                 std::max(std::min(sumWeightedSensis.at(*itInner), vegaMargin.at(*itInner)), -vegaMargin.at(*itInner));
             QuantLib::Real g = std::min(concentrationRisk.at(*itOuter), concentrationRisk.at(*itInner)) /
                                std::max(concentrationRisk.at(*itOuter), concentrationRisk.at(*itInner));
-            QuantLib::Real corr = simmConfiguration_->correlation(RiskType::IRVol, *itOuter, "", "", RiskType::IRVol,
-                                                                  *itInner, "", "", calcCcy);
+            QuantLib::Real corr = simmConfiguration_->correlation(RiskType::IRVol, *itOuter, "", "", "",
+                                                                  RiskType::IRVol, *itInner, "", "", "", calcCcy);
             margin += 2.0 * sOuter * sInner * corr * g;
         }
     }
@@ -769,6 +811,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irCurvatureMargin(const 
                                                                           const ProductClass& pc, const SimmSide& side,
                                                                           const Crif& crif) const {
     timer_.start("irCurvatureMargin()");
+
+    const string& calcCcy = side == SimmSide::Call ? calculationCcyCall_ : calculationCcyPost_;
 
     // "Bucket" here refers to exposures under the CRIF qualifiers
     map<string, QuantLib::Real> bucketMargins;
@@ -820,8 +864,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irCurvatureMargin(const 
             for (auto itInner = pIrQualifier.first; itInner != itOuter; ++itInner) {
                 // Label1 level correlation i.e. $\rho_{k,l}$ from SIMM docs
                 QuantLib::Real corr =
-                    simmConfiguration_->correlation(RiskType::IRVol, qualifier, itOuter->getLabel1(), "",
-                                                    RiskType::IRVol, qualifier, itInner->getLabel1(), "");
+                    simmConfiguration_->correlation(RiskType::IRVol, qualifier, "", itOuter->getLabel1(), "",
+                                                    RiskType::IRVol, qualifier, "", itInner->getLabel1(), "", calcCcy);
                 // Add cross element to curvature margin
                 QuantLib::Real sfInner = simmConfiguration_->curvatureWeight(RiskType::IRVol, itInner->getLabel1());
                 QuantLib::Real wsInner = sfInner * (itInner->amountResultCurrency() * multiplier);
@@ -852,8 +896,9 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irCurvatureMargin(const 
             // There are no cross elements against InflationVol since we only have one element.
             for (auto irIt = pIrQualifier.first; irIt != pIrQualifier.second; ++irIt) {
                 // Correlation i.e. $\rho_{k,l}$ from SIMM docs
-                QuantLib::Real corr = simmConfiguration_->correlation(
-                    RiskType::InflationVol, qualifier, "", "", RiskType::IRVol, qualifier, irIt->getLabel1(), "");
+                QuantLib::Real corr =
+                    simmConfiguration_->correlation(RiskType::InflationVol, qualifier, "", "", "", RiskType::IRVol,
+                                                    qualifier, "", irIt->getLabel1(), "", calcCcy);
                 // Add cross element to curvature margin
                 QuantLib::Real irSf = simmConfiguration_->curvatureWeight(RiskType::IRVol, irIt->getLabel1());
                 QuantLib::Real irWs = irSf * (irIt->amountResultCurrency() * multiplier);
@@ -885,8 +930,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::irCurvatureMargin(const 
         for (auto itInner = qualifiers.begin(); itInner != itOuter; ++itInner) {
             QuantLib::Real sInner = std::max(std::min(sumWeightedSensis.at(*itInner), curvatureMargin.at(*itInner)),
                                              -curvatureMargin.at(*itInner));
-            QuantLib::Real corr =
-                simmConfiguration_->correlation(RiskType::IRVol, *itOuter, "", "", RiskType::IRVol, *itInner, "", "");
+            QuantLib::Real corr = simmConfiguration_->correlation(RiskType::IRVol, *itOuter, "", "", "",
+                                                                  RiskType::IRVol, *itInner, "", "", "", calcCcy);
             margin += 2.0 * sOuter * sInner * corr * corr;
         }
     }
@@ -1027,9 +1072,9 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::margin(const NettingSetD
                     continue;
                 }
                 // Correlation, $\rho_{k,l}$ in the SIMM docs
-                QuantLib::Real corr =
-                    simmConfiguration_->correlation(rt, itOuter->qualifier, itOuter->label1, itOuter->label2, rt,
-                                                    itInner->qualifier, itInner->label1, itInner->label2, calcCcy);
+                QuantLib::Real corr = simmConfiguration_->correlation(
+                    rt, itOuter->qualifier, itOuter->bucket, itOuter->label1, itOuter->label2, rt, itInner->qualifier,
+                    itInner->bucket, itInner->label1, itInner->label2, calcCcy);
                 // $f_{k,l}$ from the SIMM docs
                 QuantLib::Real f = std::min(outerConcentrationRisk, concentrationRisk.at(itInner->qualifier)) /
                                    std::max(outerConcentrationRisk, concentrationRisk.at(itInner->qualifier));
@@ -1078,8 +1123,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::margin(const NettingSetD
             // of the respective (different) buckets to get the inter-bucket correlation
             string innerQualifier = *buckets.at(innerBucket).begin();
             string outerQualifier = *buckets.at(outerBucket).begin();
-            QuantLib::Real corr =
-                simmConfiguration_->correlation(rt, outerQualifier, "", "", rt, innerQualifier, "", "", calcCcy);
+            QuantLib::Real corr = simmConfiguration_->correlation(rt, outerQualifier, outerBucket, "", "", rt,
+                                                                  innerQualifier, innerBucket, "", "", calcCcy);
             margin += 2.0 * sOuter * sInner * corr;
         }
     }
@@ -1180,8 +1225,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::curvatureMargin(const Ne
             for (auto itInner = pBucket.first; itInner != itOuter; ++itInner) {
                 // Correlation, $\rho_{k,l}$ in the SIMM docs
                 QuantLib::Real corr = simmConfiguration_->correlation(
-                    rt, itOuter->getQualifier(), itOuter->getLabel1(), itOuter->getLabel2(), rt,
-                    itInner->getQualifier(), itInner->getLabel1(), itInner->getLabel2(), calcCcy);
+                    rt, itOuter->getQualifier(), itOuter->getBucket(), itOuter->getLabel1(), itOuter->getLabel2(), rt,
+                    itInner->getQualifier(), itInner->getBucket(), itInner->getLabel1(), itInner->getLabel2(), calcCcy);
                 // Add cross element to delta margin
                 QuantLib::Real sfInner = simmConfiguration_->curvatureWeight(rt, itInner->getLabel1());
                 QuantLib::Real sigmaInner =
@@ -1248,8 +1293,8 @@ pair<map<string, QuantLib::Real>, bool> SimmCalculator::curvatureMargin(const Ne
                 // of the respective (different) buckets to get the inter-bucket correlation
                 string innerQualifier = *buckets.at(innerBucket).begin();
                 string outerQualifier = *buckets.at(outerBucket).begin();
-                QuantLib::Real corr =
-                    simmConfiguration_->correlation(rt, outerQualifier, "", "", rt, innerQualifier, "", "", calcCcy);
+                QuantLib::Real corr = simmConfiguration_->correlation(rt, outerQualifier, outerBucket, "", "", rt,
+                                                                      innerQualifier, innerBucket, "", "", calcCcy);
                 margin += 2.0 * sOuter * sInner * corr * corr;
             }
         }

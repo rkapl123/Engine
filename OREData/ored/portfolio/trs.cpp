@@ -31,17 +31,17 @@
 
 #include <ql/cashflows/cashflows.hpp>
 #include <ql/cashflows/fixedratecoupon.hpp>
+#include <ql/optional.hpp>
 
 #include <boost/assign/list_of.hpp>
 #include <boost/bimap.hpp>
-#include <boost/optional.hpp>
 #include <boost/range/adaptor/map.hpp>
 
 namespace ore {
 namespace data {
 
-void addTRSRequiredFixings(RequiredFixings& fixings, const std::vector<Leg>& returnLegs, 
-    const QuantLib::ext::shared_ptr<QuantExt::FxIndex>& ind = nullptr) {
+void addTRSRequiredFixings(RequiredFixings& fixings, const std::vector<Leg>& returnLegs,
+                           const QuantLib::ext::shared_ptr<QuantExt::FxIndex>& ind = nullptr) {
     QL_REQUIRE(returnLegs.size() > 0, "TrsUnderlyingBuilder: No returnLeg built");
     auto fdg = QuantLib::ext::make_shared<FixingDateGetter>(fixings);
     fdg->setAdditionalFxIndex(ind);
@@ -62,11 +62,14 @@ void TRS::ReturnData::fromXML(XMLNode* node) {
     paymentCalendar_ = XMLUtils::getChildValue(node, "PaymentCalendar", false);
     paymentDates_ = XMLUtils::getChildrenValues(node, "PaymentDates", "PaymentDate", false);
     initialPrice_ = Null<Real>();
+    if (XMLNode* fxcNode = XMLUtils::getChildNode(node, "FXConversion")) {
+        fxConversion_ = parseFXConversion(XMLUtils::getNodeValue(fxcNode));
+    }
     if (auto n = XMLUtils::getChildNode(node, "InitialPrice")) {
         initialPrice_ = parseReal(XMLUtils::getNodeValue(n));
     }
     initialPriceCurrency_ = XMLUtils::getChildValue(node, "InitialPriceCurrency");
-    payUnderlyingCashFlowsImmediately_ = boost::none;
+    payUnderlyingCashFlowsImmediately_ = QuantLib::ext::nullopt;
     if (auto n = XMLUtils::getChildNode(node, "PayUnderlyingCashFlowsImmediately")) {
         payUnderlyingCashFlowsImmediately_ = parseBool(XMLUtils::getNodeValue(n));
     }
@@ -100,8 +103,18 @@ XMLNode* TRS::ReturnData::toXML(XMLDocument& doc) const {
         XMLUtils::addChild(doc, n, "PayUnderlyingCashFlowsImmediately", *payUnderlyingCashFlowsImmediately_);
     if (!fxTerms_.empty())
         XMLUtils::addChildren(doc, n, "FXTerms", "FXIndex", fxTerms_);
+    if (fxConversion_.has_value()) {
+        XMLUtils::addChild(doc, n, "FXConversion", ore::data::to_string(fxConversion_.value()));
+    }
     return n;
 }
+
+TRS::FXConversion TRS::ReturnData::parseFXConversion(string fxConv_) {
+    return fxConv_ == "End" ? FXConversion::End : FXConversion::Start;
+}
+
+
+
 
 void TRS::FundingData::fromXML(XMLNode* node) {
     XMLUtils::checkNode(node, "FundingData");
@@ -187,6 +200,7 @@ void TRS::fromXML(XMLNode* node) {
     XMLNode* underlyingDataNode = XMLUtils::getChildNode(dataNode, "UnderlyingData");
     QL_REQUIRE(underlyingDataNode, "UnderlyingData node required");
     std::vector<XMLNode*> underlyingTradeNodes = XMLUtils::getChildrenNodes(underlyingDataNode, "Trade");
+    std::vector<XMLNode*> underlyingSubTradeNodes = XMLUtils::getChildrenNodes(underlyingDataNode, "SubTrade");
     std::vector<XMLNode*> underlyingTradeNodes2 = XMLUtils::getChildrenNodes(underlyingDataNode, "Derivative");
     if (auto underlyingTradeNodes3 = XMLUtils::getChildNode(underlyingDataNode, "PortfolioIndexTradeData")) {
         QL_REQUIRE((XMLUtils::getChildrenNodes(underlyingDataNode, "PortfolioIndexTradeData")).size() == 1, "Expecting one PortfolioIndex Node");
@@ -195,7 +209,8 @@ void TRS::fromXML(XMLNode* node) {
         portfolioDeriv_ = true;
         indexQuantity_ = XMLUtils::getChildValueAsDouble(underlyingTradeNodes3, "IndexQuantity", false, 1);
     }
-    QL_REQUIRE(!underlyingTradeNodes.empty() || !underlyingTradeNodes2.empty() || !portfolioId_.empty(),
+    QL_REQUIRE(!underlyingTradeNodes.empty() || !underlyingSubTradeNodes.empty() || !underlyingTradeNodes2.empty() ||
+                   !portfolioId_.empty(),
                "at least one 'Trade' or 'Derivative' or 'PortfolioIndexTradeData' node required");
     Size underlyingCounter = 0;
     underlying_.clear();
@@ -212,28 +227,55 @@ void TRS::fromXML(XMLNode* node) {
                   (underlyingTradeNodes.size() > 1 ? "_" + std::to_string(underlyingCounter++) : "");
         u->fromXML(n);
         underlyingDerivativeId_.push_back(std::string());
+        u->isSubTrade() = true;
+        underlying_.push_back(u);
+    }
+    for (auto const n : underlyingSubTradeNodes) {
+        std::string tradeType = XMLUtils::getChildValue(n, "SubTradeType", true);
+        QuantLib::ext::shared_ptr<Trade> u;
+        try {
+            u = TradeFactory::instance().build(tradeType);
+        } catch (const std::exception& e) {
+            QL_FAIL("Failed for build TRS underlying trade # " << underlyingCounter + 1 << ": " << e.what());
+        }
+        u->id() = this->id() + "_underlying" +
+                  (underlyingSubTradeNodes.size() > 1 ? "_" + std::to_string(underlyingCounter++) : "");
+        u->fromXML(n);
+        underlyingDerivativeId_.push_back(std::string());
+        u->isSubTrade() = true;
         underlying_.push_back(u);
     }
     for (auto const n : underlyingTradeNodes2) {
         underlyingDerivativeId_.push_back(XMLUtils::getChildValue(n, "Id", true));
-        auto t = XMLUtils::getChildNode(n, "Trade");
-        if (auto underlyingTradeNodes3 = XMLUtils::getChildNode(t, "CompositeTradeData")) {
-            if (XMLUtils::getChildNode(underlyingTradeNodes3, "BasketName")) {
-                QL_REQUIRE(underlyingTradeNodes2.size() == 1 && portfolioId_ == "", "Expecting one derivative.");
-                portfolioId_ = XMLUtils::getChildValue(underlyingTradeNodes3, "BasketName", true);
-                QL_REQUIRE(portfolioId_ != "", "BasketName must not be empty.");
-                indexQuantity_ = XMLUtils::getChildValueAsDouble(underlyingTradeNodes3, "IndexQuantity", false, 1);
-                portfolioDeriv_ = false;
+        string tradeType;
+        XMLNode* trade = XMLUtils::getChildNode(n, "Trade");
+        if (trade) {
+            tradeType = XMLUtils::getChildValue(trade, "TradeType", true);
+        } else {
+
+            trade = XMLUtils::getChildNode(n, "SubTrade");
+            if (trade) {
+                tradeType = XMLUtils::getChildValue(trade, "SubTradeType", true);
             }
         }
-        QL_REQUIRE(t != nullptr, "expected 'Trade' node under 'Derivative' node");
-        std::string tradeType = XMLUtils::getChildValue(t, "TradeType", true);
+        if(trade){
+            if (auto underlyingTradeNodes3 = XMLUtils::getChildNode(trade, "CompositeTradeData")) {
+                if (XMLUtils::getChildNode(underlyingTradeNodes3, "BasketName")) {
+                    QL_REQUIRE(underlyingTradeNodes2.size() == 1 && portfolioId_ == "", "Expecting one derivative.");
+                    portfolioId_ = XMLUtils::getChildValue(underlyingTradeNodes3, "BasketName", true);
+                    QL_REQUIRE(portfolioId_ != "", "BasketName must not be empty.");
+                    indexQuantity_ = XMLUtils::getChildValueAsDouble(underlyingTradeNodes3, "IndexQuantity", false, 1);
+                    portfolioDeriv_ = false;
+                }
+            }
+        }
+        QL_REQUIRE(trade != nullptr, "expected 'Trade' or 'SubTrade' node under 'Derivative' node");
         auto u = TradeFactory::instance().build(tradeType);
         QL_REQUIRE(u, "No trade builder found for TRS derivative trade type '"
                           << tradeType << "' when processing underlying trade #" << (underlyingCounter + 1));
-        u->id() = this->id() + "_underlying" +
-                  (underlyingTradeNodes.size() > 1 ? "_" + std::to_string(underlyingCounter++) : "");
-        u->fromXML(t);
+        u->id() = this->id() + "_underlying" + ((underlyingTradeNodes.size() + underlyingSubTradeNodes.size() > 1) ? "_" + std::to_string(underlyingCounter++) : "");
+        u->fromXML(trade);
+        u->isSubTrade() = true;
         underlying_.push_back(u);
     } 
     // read return data
@@ -313,6 +355,10 @@ TRS::getFxIndex(const QuantLib::ext::shared_ptr<Market> market, const std::strin
     return fx;
 }
 
+/*TRS::FXConversion TRS::ReturnData::parseFXConversion(string fxConv_) { return  (fxConv_ == "Start" ? FXConversion::Start
+                                                                                               : FXConversion::End);
+}*/
+
 void TRS::build(const QuantLib::ext::shared_ptr<EngineFactory>& engineFactory) {
 
     DLOG("TRS::build() called for id = " << id());
@@ -363,6 +409,7 @@ void TRS::build(const QuantLib::ext::shared_ptr<EngineFactory>& engineFactory) {
     // a builder might update the underlying (e.g. promote it from bond to convertible bond)
 
     for (Size i = 0; i < underlying_.size(); ++i) {
+        underlying_[i]->isSubTrade() = true;
         if (underlyingDerivativeId_[i].empty()) {
             for (auto const& b : TrsUnderlyingBuilderFactory::instance().getBuilders()) {
                 b.second->updateUnderlying(engineFactory->referenceData(), underlying_[i], id());
@@ -537,7 +584,7 @@ void TRS::build(const QuantLib::ext::shared_ptr<EngineFactory>& engineFactory) {
     for (auto u : underlying_) {
         auto it = u->additionalData().find("isdaAssetClass");
         if (it != u->additionalData().end()) {
-            std::string ac = boost::any_cast<std::string>(it->second);
+            std::string ac = QuantLib::ext::any_cast<std::string>(it->second);
             if (assetClass == "")
                 assetClass = ac;
             else if (ac != assetClass)
@@ -779,7 +826,7 @@ void TRS::build(const QuantLib::ext::shared_ptr<EngineFactory>& engineFactory) {
         parseCurrency(returnData_.currency()), valuationDates, paymentDates, fundingLegs, fundingNotionalTypes,
         parseCurrency(fundingCurrency), fundingData_.fundingResetGracePeriod(), returnData_.payer(), fundingLegPayer,
         additionalCashflowLeg, additionalCashflowLegPayer, parseCurrency(additionalCashflowLegCurrency), fxIndexAsset,
-        fxIndexReturn, fxIndexAdditionalCashflows, fxIndices);
+        fxIndexReturn, fxIndexAdditionalCashflows, fxIndices, returnData_.fxConversionAtPeriodEnd());
 
     Handle<YieldTermStructure> additionalCashflowCurrencyDiscountCurve;
     if (!additionalCashflowLeg.empty()) {
@@ -860,6 +907,17 @@ std::ostream& operator<<(std::ostream& os, const TRS::FundingData::NotionalType 
     return os;
 }
 
+std::ostream& operator<<(std::ostream& out, const TRS::FXConversion type) {
+    switch (type) {
+    case TRS::FXConversion::Start:
+        return out << "Start";
+    case TRS::FXConversion::End:
+        return out << "End";
+    default:
+        QL_FAIL("Unrecognized FXConversion type");
+    }
+}
+
 void TRS::populateFromReferenceData(const QuantLib::ext::shared_ptr<ReferenceDataManager>& referenceData) const{
 
     if (!portfolioId_.empty() && referenceData != nullptr &&
@@ -882,6 +940,7 @@ void TRS::getTradesFromReferenceData(const QuantLib::ext::shared_ptr<PortfolioBa
     underlying_.clear();
     for (Size i = 0; i < refData.size(); i++) {
         underlyingDerivativeId_.push_back((portfolioId_));
+        refData[i]->isSubTrade() = true;
         QL_REQUIRE(refData[i] != nullptr, "expected 'Trade' node under 'Derivative' node");
         underlying_.push_back(refData[i]);
     }

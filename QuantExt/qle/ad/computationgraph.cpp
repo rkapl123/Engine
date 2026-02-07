@@ -22,6 +22,7 @@
 
 #include <ql/errors.hpp>
 #include <ql/math/comparison.hpp>
+#include <ql/math/rounding.hpp>
 
 #include <boost/math/distributions/normal.hpp>
 
@@ -201,7 +202,8 @@ std::size_t cg_add(ComputationGraph& g, const std::size_t a, const std::size_t b
 }
 
 std::size_t cg_add(ComputationGraph& g, const std::vector<std::size_t>& a, const std::string& label) {
-    QL_REQUIRE(!a.empty(), "cg_add(): empty arguments vector is not allowed");
+    if (a.empty())
+        return cg_const(g, 0.0);
     if (a.size() == 1)
         return a[0];
     if (a.size() == 2)
@@ -318,6 +320,22 @@ std::size_t cg_sqrt(ComputationGraph& g, const std::size_t a, const std::string&
     return g.insert({a}, RandomVariableOpCode::Sqrt, label);
 }
 
+std::size_t cg_frac(ComputationGraph& g, const std::size_t a, const std::string& label) {
+    if (g.isConstant(a)){
+        double intPart;
+        return cg_const(g, std::modf(g.constantValue(a), &intPart));
+    } 
+    return g.insert({a}, RandomVariableOpCode::Frac, label);
+}
+
+std::size_t cg_round(ComputationGraph& g, const std::size_t a, const std::size_t b, const std::string& label) {
+    if (g.isConstant(a) && g.isConstant(b)){
+        QuantLib::Rounding rnd(g.constantValue(b), QuantLib::Rounding::Closest, 5);
+        return cg_const(g, rnd(g.constantValue(a)));
+    }
+    return g.insert({a, b}, RandomVariableOpCode::Round, label);
+}
+
 std::size_t cg_log(ComputationGraph& g, const std::size_t a, const std::string& label) {
     if (g.isConstant(a))
         return cg_const(g, std::log(g.constantValue(a)));
@@ -367,6 +385,17 @@ std::size_t cg_normalPdf(ComputationGraph& g, const std::size_t a, const std::st
     if (g.isConstant(a))
         return cg_const(g, boost::math::pdf(n, g.constantValue(a)));
     return g.insert({a}, RandomVariableOpCode::NormalPdf, label);
+}
+
+std::set<std::size_t> dependentNodes(const ComputationGraph& g, const std::size_t start, const std::size_t end) {
+    std::set<std::size_t> nodes;
+    for (std::size_t n = start; n < end; ++n) {
+        std::for_each(g.predecessors(n).begin(), g.predecessors(n).end(), [&nodes, start](const std::size_t p) {
+            if (p < start)
+                nodes.insert(p);
+        });
+    }
+    return nodes;
 }
 
 } // namespace QuantExt

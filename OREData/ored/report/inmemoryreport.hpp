@@ -26,7 +26,7 @@
 #include <ored/report/csvreport.hpp>
 #include <ored/report/report.hpp>
 #include <ql/errors.hpp>
-#include <ql/tuple.hpp>
+#include <tuple>
 #include <vector>
 #include <map>
 
@@ -44,7 +44,7 @@ public:
     explicit InMemoryReport(Size bufferSize=0) : i_(0), bufferSize_(bufferSize), cacheIndex_(0) {}
     ~InMemoryReport() override;
 
-    Report& addColumn(const string& name, const ReportType& rt, Size precision = 0) override;
+    Report& addColumn(const string& name, const ReportType& rt, Size precision = 0, bool scientific = false) override;
     Report& next() override;
     Report& add(const ReportType& rt) override;
     Report& add(const InMemoryReport& report);
@@ -61,6 +61,8 @@ public:
     const ReportType& data(Size i, Size j) const;
     void toFile(const string& filename, const char sep = ',', const bool commentCharacter = true, char quoteChar = '\0',
                 const string& nullString = "#N/A", bool lowerHeader = false);
+    void toZip(const string& filename, const char sep = ',', const bool commentCharacter = true, char quoteChar = '\0',
+                const string& nullString = "#N/A", bool lowerHeader = false);
     void jumpToColumn(Size i) { i_ = i; }
     
     //! Return the position of a column, throws an exception if columnName not in report
@@ -75,6 +77,7 @@ private:
     vector<string> headers_;
     vector<ReportType> columnTypes_;
     vector<Size> columnPrecision_;
+    vector<bool> columnScientific_;
     vector<vector<ReportType>> data_;
     vector<string> files_;
     std::map<std::string, size_t> headersMap_;

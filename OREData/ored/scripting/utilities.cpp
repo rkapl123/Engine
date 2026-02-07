@@ -434,7 +434,7 @@ IndexInfo::IndexInfo(const std::string& name, const QuantLib::ext::shared_ptr<Ma
     // and same for inflation
     if (!done) {
         try {
-            QuantExt::ext::tie(inf_, infName_, infIsInterpolated_) = parseScriptedInflationIndex(name);
+            std::tie(inf_, infName_, infIsInterpolated_) = parseScriptedInflationIndex(name);
             isInf_ = done = true;
         } catch (...) {
         }
@@ -496,29 +496,31 @@ std::ostream& operator<<(std::ostream& o, const IndexInfo& i) {
     return o;
 }
 
-QuantLib::ext::shared_ptr<FallbackIborIndex> IndexInfo::irIborFallback(const IborFallbackConfig& iborFallbackConfig,
+QuantLib::ext::shared_ptr<FallbackIborIndex> IndexInfo::irIborFallback(const QuantLib::ext::shared_ptr<IborFallbackConfig>& iborFallbackConfig,
                                                                const Date& asof) const {
-    if (isIrIbor_ && iborFallbackConfig.isIndexReplaced(name_, asof)) {
-        auto data = iborFallbackConfig.fallbackData(name_);
+    if (isIrIbor_ && iborFallbackConfig->isIndexReplaced(name_, asof)) {
+        auto data = iborFallbackConfig->fallbackData(name_);
         // we don't support convention based rfr fallback indices, with ore ticket 1758 this might change
         auto on = QuantLib::ext::dynamic_pointer_cast<OvernightIndex>(parseIborIndex(data.rfrIndex));
         QL_REQUIRE(on, "IndexInfo::irIborFallback(): could not cast rfr index '"
                            << data.rfrIndex << "' for ibor fallback index '" << name_ << "' to an overnight index");
-        return QuantLib::ext::make_shared<FallbackIborIndex>(irIbor_, on, data.spread, data.switchDate, false);
+        return QuantLib::ext::make_shared<FallbackIborIndex>(irIbor_, on, data.spread, data.switchDate, irIbor_->forwardingTermStructure());
     }
     return nullptr;
 }
 
-QuantLib::ext::shared_ptr<FallbackOvernightIndex> IndexInfo::irOvernightFallback(const IborFallbackConfig& iborFallbackConfig,
+QuantLib::ext::shared_ptr<FallbackOvernightIndex>
+IndexInfo::irOvernightFallback(const QuantLib::ext::shared_ptr<IborFallbackConfig>& iborFallbackConfig,
 									 const Date& asof) const {
-    if (isIrIbor_ && iborFallbackConfig.isIndexReplaced(name_, asof)) {
-        auto data = iborFallbackConfig.fallbackData(name_);
+    if (isIrIbor_ && iborFallbackConfig->isIndexReplaced(name_, asof)) {
+        auto data = iborFallbackConfig->fallbackData(name_);
         // we don't support convention based rfr fallback indices, with ore ticket 1758 this might change
         auto on = QuantLib::ext::dynamic_pointer_cast<OvernightIndex>(parseIborIndex(data.rfrIndex));
         QL_REQUIRE(on, "IndexInfo::irIborFallback(): could not cast rfr index '"
                            << data.rfrIndex << "' for ibor fallback index '" << name_ << "' to an overnight index");
         if (auto original = QuantLib::ext::dynamic_pointer_cast<OvernightIndex>(irIbor_))
-	    return QuantLib::ext::make_shared<FallbackOvernightIndex>(original, on, data.spread, data.switchDate, false);
+            return QuantLib::ext::make_shared<FallbackOvernightIndex>(original, on, data.spread, data.switchDate,
+                                                                 original->forwardingTermStructure());
 	else
 	    return nullptr;
     }
@@ -603,7 +605,7 @@ parseScriptedInflationIndex(const std::string& indexName) {
     } else {
         QL_FAIL("parseScriptedInflationIndex(): expected IndexName or IndexName#[F|L], got '" << indexName << "'");
     }
-    return QuantExt::ext::make_tuple(parseZeroInflationIndex(plainIndexName, Handle<ZeroInflationTermStructure>()),
+    return std::make_tuple(parseZeroInflationIndex(plainIndexName, Handle<ZeroInflationTermStructure>()),
                                      plainIndexName, interpolated);
 }
 

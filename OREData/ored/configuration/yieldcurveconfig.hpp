@@ -34,8 +34,6 @@
 #include <ql/types.hpp>
 #include <ql/termstructures/bootstraphelper.hpp>
 
-#include <boost/none.hpp>
-#include <boost/optional.hpp>
 #include <ql/shared_ptr.hpp>
 #include <ql/optional.hpp>
 
@@ -60,6 +58,24 @@ using std::vector;
 */
 class YieldCurveSegment : public XMLSerializable {
 public:
+    //! extended pillar choice
+    enum class PillarChoice {
+        NoPillar,
+        MaturityDate,     // maps to QuantLib::Pillar::Maturity
+        LastRelevantDate, // maps to QuantLib::Pillar::LastRelevantDate
+        StartDate,        // maps to QuantLib::Pillar::StartDate
+        StartDateAndMaturityDate,
+        StartDateAndLastRelevantDate
+    };
+
+    //! duplicate pillar handling
+    enum class DuplicatePillarPolicy {
+        KeepLast,
+        KeepFirst,
+        KeepAll,
+        ThrowError
+    };
+
     //! supported segment types
     enum class Type {
         Zero,
@@ -96,10 +112,9 @@ public:
     //! \name Inspectors
     //@{
     Type type() const { return type_; }
-    // TODO: why typeID?
-    const string& typeID() const { return typeID_; }
     const string& conventionsID() const { return conventionsID_; }
-    const QuantLib::Pillar::Choice pillarChoice() const { return pillarChoice_; }
+    PillarChoice pillarChoice() const { return pillarChoice_; }
+    DuplicatePillarPolicy duplicatePillarPolicy() const { return duplicatePillarPolicy_; }
     Size priority() const { return priority_; }
     Size minDistance() const { return minDistance_; }
     const vector<pair<string, bool>>& quotes() const { return quotes_; }
@@ -126,11 +141,10 @@ protected:
     pair<string, bool> quote(const string& name, bool opt = false) { return make_pair(name, opt); }
 
 private:
-    // TODO: why type and typeID?
     Type type_;
-    string typeID_;
     string conventionsID_;
-    QuantLib::Pillar::Choice pillarChoice_ = QuantLib::Pillar::LastRelevantDate;
+    PillarChoice pillarChoice_ = PillarChoice::LastRelevantDate;
+    DuplicatePillarPolicy duplicatePillarPolicy_ = DuplicatePillarPolicy::KeepLast;
     Size priority_ = 0;
     Size minDistance_ = 1;
 };
@@ -615,7 +629,7 @@ public:
     //! Default destructor
     virtual ~BondYieldShiftedYieldCurveSegment() {}
     //@}
-    
+
     //! \name Serialisation
     //@{
     virtual void fromXML(XMLNode* node) override;
@@ -653,12 +667,15 @@ public:
     //! \name Constructors/Destructors
     //@{
     //! Default constructor
-    YieldCurveConfig(QuantLib::ext::shared_ptr<IborFallbackConfig> iborFallbackConfig = nullptr) : iborFallbackConfig_(iborFallbackConfig) {}
+    YieldCurveConfig(QuantLib::ext::shared_ptr<IborFallbackConfig> iborFallbackConfig = nullptr) : iborFallbackConfig_(
+        iborFallbackConfig) {}
     //! Detailed constructor
     YieldCurveConfig(const string& curveID, const string& curveDescription, const string& currency,
-                     const string& discountCurveID, const vector<QuantLib::ext::shared_ptr<YieldCurveSegment>>& curveSegments,
+                     const string& discountCurveID,
+                     const vector<QuantLib::ext::shared_ptr<YieldCurveSegment>>& curveSegments,
                      const string& interpolationVariable = "Discount", const string& interpolationMethod = "LogLinear",
                      const string& zeroDayCounter = "A365", bool extrapolation = true,
+                     const string& extrapolationMethod = "ContinuousForward",
                      const BootstrapConfig& bootstrapConfig = BootstrapConfig(),
                      const Size mixedInterpolationCutoff = 1,
                      QuantLib::ext::shared_ptr<IborFallbackConfig> iborFallbackConfig = nullptr);
@@ -682,7 +699,9 @@ public:
     Size mixedInterpolationCutoff() const { return mixedInterpolationCutoff_; }
     const string& zeroDayCounter() const { return zeroDayCounter_; }
     bool extrapolation() const { return extrapolation_; }
+    const string& extrapolationMethod() const { return extrapolationMethod_; }
     const BootstrapConfig& bootstrapConfig() const { return bootstrapConfig_; }
+    bool excludeT0FromInterpolation() const { return excludeT0FromInterpolation_; }
     //@}
 
     //! \name Setters
@@ -692,6 +711,7 @@ public:
     Size& mixedInterpolationCutoff() { return mixedInterpolationCutoff_; }
     string& zeroDayCounter() { return zeroDayCounter_; }
     bool& extrapolation() { return extrapolation_; }
+    string& extrapolationMethod() { return extrapolationMethod_; }
     void setBootstrapConfig(const BootstrapConfig& bootstrapConfig) { bootstrapConfig_ = bootstrapConfig; }
     //@}
     const ReportConfig& reportConfig() const { return reportConfig_; }
@@ -710,11 +730,13 @@ private:
     string interpolationVariable_;
     string interpolationMethod_;
     string zeroDayCounter_;
-    bool extrapolation_;
+    bool extrapolation_ = true;
+    string extrapolationMethod_;
     BootstrapConfig bootstrapConfig_;
-    Size mixedInterpolationCutoff_;
+    Size mixedInterpolationCutoff_ = 1;
     ReportConfig reportConfig_;
     QuantLib::ext::shared_ptr<IborFallbackConfig> iborFallbackConfig_;
+    bool excludeT0FromInterpolation_ = false;
 };
 
 // Map form curveID to YieldCurveConfig

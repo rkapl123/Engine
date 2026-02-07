@@ -54,7 +54,8 @@ public:
         const QuantLib::ext::shared_ptr<ore::analytics::ScenarioFilter>& scenarioFilter =
             QuantLib::ext::make_shared<ore::analytics::ScenarioFilter>(),
         const QuantLib::ext::shared_ptr<ore::data::ReferenceDataManager>& referenceData = nullptr,
-        const ore::data::IborFallbackConfig& iborFallbackConfig = ore::data::IborFallbackConfig::defaultConfig(),
+        const QuantLib::ext::shared_ptr<ore::data::IborFallbackConfig>& iborFallbackConfig =
+            QuantLib::ext::make_shared<ore::data::IborFallbackConfig>(ore::data::IborFallbackConfig::defaultConfig()),
         const bool handlePseudoCurrenciesTodaysMarket = true, const bool handlePseudoCurrenciesSimMarket = true,
         const bool recalibrateModels = true,
         const std::function<QuantLib::ext::shared_ptr<ore::analytics::NPVCube>(
@@ -67,7 +68,8 @@ public:
             const QuantLib::Date&, const std::set<std::string>&, const std::vector<QuantLib::Date>&,
             const QuantLib::Size)>& cptyCubeFactory = {},
         const std::string& context = "unspecified",
-        const QuantLib::ext::shared_ptr<ore::analytics::Scenario>& offSetScenario = nullptr);
+        const QuantLib::ext::shared_ptr<ore::analytics::Scenario>& offSetScenario = nullptr,
+        const bool useAtParCouponsCurves = true, const bool useAtParCouponsTrades = true);
 
     // can be optionally called to set the agg scen data (which is done in the ssm for single-threaded runs)
     void setAggregationScenarioData(const QuantLib::ext::shared_ptr<AggregationScenarioData>& aggregationScenarioData);
@@ -111,7 +113,7 @@ private:
     bool cacheSimData_;
     QuantLib::ext::shared_ptr<ore::analytics::ScenarioFilter> scenarioFilter_;
     QuantLib::ext::shared_ptr<ore::data::ReferenceDataManager> referenceData_;
-    ore::data::IborFallbackConfig iborFallbackConfig_;
+    QuantLib::ext::shared_ptr<ore::data::IborFallbackConfig> iborFallbackConfig_;
     bool handlePseudoCurrenciesTodaysMarket_;
     bool handlePseudoCurrenciesSimMarket_;
     bool recalibrateModels_;
@@ -126,6 +128,9 @@ private:
         cptyCubeFactory_;
     std::string context_;
     QuantLib::ext::shared_ptr<ore::analytics::Scenario> offsetScenario_;
+    bool useAtParCouponsCurves_ = true;
+    bool useAtParCouponsTrades_ = true;
+
     QuantLib::ext::shared_ptr<AggregationScenarioData>
             aggregationScenarioData_;
     std::vector<QuantLib::ext::shared_ptr<ore::analytics::NPVCube>> miniCubes_;

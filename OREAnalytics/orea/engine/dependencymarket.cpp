@@ -36,6 +36,7 @@
 #include <qle/termstructures/pricecurve.hpp>
 #include <qle/termstructures/zeroinflationcurveobservermoving.hpp>
 #include <qle/termstructures/yoyinflationcurveobservermoving.hpp>
+#include <qle/termstructures/proxyoptionletvolatility.hpp>
 
 #include <ql/currencies/europe.hpp>
 #include <ql/indexes/ibor/eonia.hpp>
@@ -212,17 +213,18 @@ Handle<IborIndex> DependencyMarket::iborIndex(const string& name, const string& 
     // for our main use case of the configuration builder using the dependency market via the portfolio
     // analyser.
 
-    if (iborFallbackConfig_.isIndexReplaced(name, asofDate())) {
-        auto rfrName = iborFallbackConfig_.fallbackData(name).rfrIndex;
+    if (iborFallbackConfig_->isIndexReplaced(name, asofDate())) {
+        auto rfrName = iborFallbackConfig_->fallbackData(name).rfrIndex;
         addRiskFactor(RiskFactorKey::KeyType::IndexCurve, rfrName);
         addMarketObject(MarketObject::IndexCurve, rfrName, config);
         // we don't support convention based indices here, this might change with ore ticket 1758
         auto oi = QuantLib::ext::dynamic_pointer_cast<OvernightIndex>(parseIborIndex(rfrName, yts));
         QL_REQUIRE(oi != nullptr, "DependencyMarket::iborIndex(): could not cast rfr index '"
                                       << rfrName << "' to OvernightIndex, this is unexpected.");
-        auto fallbackData = iborFallbackConfig_.fallbackData(name);
+        auto fallbackData = iborFallbackConfig_->fallbackData(name);
 	if (auto original = QuantLib::ext::dynamic_pointer_cast<OvernightIndex>(iip))
-	    ii = Handle<IborIndex>(QuantLib::ext::make_shared<QuantExt::FallbackOvernightIndex>(original, oi, fallbackData.spread,
+            ii = Handle<IborIndex>(QuantLib::ext::make_shared<QuantExt::FallbackOvernightIndex>(
+                original, oi, fallbackData.spread,
                                                                                fallbackData.switchDate, false));
 	else
 	    ii = Handle<IborIndex>(QuantLib::ext::make_shared<QuantExt::FallbackIborIndex>(*ii, oi, fallbackData.spread,
@@ -370,7 +372,11 @@ Handle<Quote> DependencyMarket::recoveryRate(const string& name, const string&) 
 }
 
 Handle<Quote> DependencyMarket::conversionFactor(const string& name, const string& config) const {
-    addRiskFactor(RiskFactorKey::KeyType::ConversionFactor, name);
+    addMarketObject(MarketObject::Security, name, config);
+    return Handle<Quote>(QuantLib::ext::make_shared<SimpleQuote>(1.0));
+}
+
+Handle<Quote> DependencyMarket::securityPrice(const string& name, const string& config) const {
     addMarketObject(MarketObject::Security, name, config);
     return Handle<Quote>(QuantLib::ext::make_shared<SimpleQuote>(1.0));
 }
@@ -403,17 +409,29 @@ Handle<OptionletVolatilityStructure> DependencyMarket::capFloorVol(const string&
     addMarketObject(MarketObject::CapFloorVol, name, config);
     // ensure that the dependent ibor indiex is captured
     iborIndex(capFloorVolIndexBase(name, config).first, config);
-    return flatRateCvs();
+    Handle<OptionletVolatilityStructure> handleflatRateCvs = flatRateCvs();
+    if (curveConfigs_ && curveConfigs_->hasCapFloorVolCurveConfig(name)) {
+        auto cc = curveConfigs_->capFloorVolCurveConfig(name);
+        if (!cc->proxyTargetIndex().empty()){
+            QuantLib::ext::shared_ptr<QuantExt::ProxyOptionletVolatility> capletVol = QuantLib::ext::make_shared<QuantExt::ProxyOptionletVolatility>(handleflatRateCvs, parseIborIndex(cc->proxySourceIndex()), 
+                                                                                  parseIborIndex(cc->proxyTargetIndex()), cc->proxySourceRateComputationPeriod(), 
+                                                                                  cc->proxyTargetRateComputationPeriod(), cc->proxyScalingFactor());
+            return Handle<OptionletVolatilityStructure>(capletVol);
+        }
+    }
+    return handleflatRateCvs;
 }
 
 std::pair<string, QuantLib::Period> DependencyMarket::capFloorVolIndexBase(const string& name,
                                                                            const string& config) const {
     if (curveConfigs_ && curveConfigs_->hasCapFloorVolCurveConfig(name)) {
         auto cc = curveConfigs_->capFloorVolCurveConfig(name);
-        if (!cc->proxyTargetIndex().empty())
+        if (!cc->proxyTargetIndex().empty()){
             return std::make_pair(cc->proxyTargetIndex(), cc->proxyTargetRateComputationPeriod());
-        else
+        }
+        else{
             return std::make_pair(cc->index(), cc->rateComputationPeriod());
+        }  
     }
     QuantLib::ext::shared_ptr<IborIndex> index;
     if (tryParseIborIndex(name, index)) {

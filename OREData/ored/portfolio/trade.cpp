@@ -19,22 +19,26 @@
 #include <ored/portfolio/structuredtradewarning.hpp>
 #include <ored/portfolio/trade.hpp>
 #include <ored/utilities/indexnametranslator.hpp>
+#include <ored/utilities/marketdata.hpp>
 #include <ored/utilities/to_string.hpp>
+#include <ored/portfolio/cashflowutils.hpp>
 
 #include <qle/cashflows/equitycouponpricer.hpp>
+#include <qle/cashflows/fxlinkedcashflow.hpp>
 #include <qle/cashflows/indexedcoupon.hpp>
-#include <qle/cashflows/typedcashflow.hpp>
 #include <qle/instruments/payment.hpp>
 #include <qle/pricingengines/paymentdiscountingengine.hpp>
-
-using ore::data::XMLUtils;
 
 namespace ore {
 namespace data {
 
+using ore::data::XMLUtils;
+using namespace QuantExt;
+
 void Trade::fromXML(XMLNode* node) {
-    XMLUtils::checkNode(node, "Trade");
-    tradeType_ = XMLUtils::getChildValue(node, "TradeType", true);
+    XMLUtils::checkAnyNode(node, {"Trade", "SubTrade"});
+    std::vector<string> names = {"TradeType", "SubTradeType"};
+    tradeType_ = XMLUtils::getAnyChildValue(node, names, true);
     if (XMLNode* envNode = XMLUtils::getChildNode(node, "Envelope")) {
         envelope_.fromXML(envNode);
     }
@@ -46,10 +50,10 @@ void Trade::fromXML(XMLNode* node) {
 
 XMLNode* Trade::toXML(XMLDocument& doc) const {
     // Crete Trade Node with Id attribute.
-    XMLNode* node = doc.allocNode("Trade");
+    XMLNode* node = doc.allocNode(isSubTrade() ? "SubTrade" : "Trade");
     QL_REQUIRE(node, "Failed to create trade node");
     XMLUtils::addAttribute(doc, node, "id", id_);
-    XMLUtils::addChild(doc, node, "TradeType", tradeType_);
+    XMLUtils::addChild(doc, node, isSubTrade() ? "SubTradeType" : "TradeType", tradeType_);
     XMLUtils::appendNode(node, envelope_.toXML(doc));
     if (!tradeActions_.empty())
         XMLUtils::appendNode(node, tradeActions_.toXML(doc));
@@ -58,7 +62,7 @@ XMLNode* Trade::toXML(XMLDocument& doc) const {
 
 Date Trade::addPremiums(std::vector<QuantLib::ext::shared_ptr<Instrument>>& addInstruments, std::vector<Real>& addMultipliers,
                         const Real tradeMultiplier, const PremiumData& premiumData, const Real premiumMultiplier,
-                        const Currency& tradeCurrency, const QuantLib::ext::shared_ptr<EngineFactory>& factory,
+                        const Currency& tradeCurrency, const string& discountCurve, const QuantLib::ext::shared_ptr<EngineFactory>& factory,
                         const string& configuration) {
 
     Date latestPremiumPayDate = Date::minDate();
@@ -68,14 +72,38 @@ Date Trade::addPremiums(std::vector<QuantLib::ext::shared_ptr<Instrument>>& addI
 
         Currency premiumCurrency = parseCurrencyWithMinors(d.ccy);
         Real premiumAmount = convertMinorToMajorCurrency(d.ccy, d.amount);
-        auto fee = QuantLib::ext::make_shared<QuantExt::Payment>(premiumAmount, premiumCurrency, d.payDate);
-
+        Currency payCurrency = d.payCurrency.empty() ? premiumCurrency : parseCurrencyWithMinors(d.payCurrency);
+        QuantLib::ext::shared_ptr<QuantExt::FxIndex> fxIndex;
+        std::optional<QuantLib::Date> fixingDate;
+        if (payCurrency != premiumCurrency) {
+            QL_REQUIRE(!d.fxIndex.empty(), "Trade contains premium data with premium currency " << premiumCurrency
+                                                  << " and cash settlement payment currency " << payCurrency
+                                                  << ", but no FX index is provided for conversion.");
+            auto ind = parseFxIndex(d.fxIndex);
+            fxIndex = buildFxIndex(d.fxIndex, payCurrency.code(), premiumCurrency.code(), factory->market(),
+                                   configuration, true);
+            if (!d.fixingDate.empty()) {
+                fixingDate = parseDate(d.fixingDate);
+            }
+        }
+        auto fee = QuantLib::ext::make_shared<QuantExt::Payment>(premiumAmount, premiumCurrency, d.payDate, payCurrency,
+                                                                 fxIndex, fixingDate);
         addMultipliers.push_back(premiumMultiplier);
 
-        Handle<YieldTermStructure> yts = factory->market()->discountCurve(d.ccy, configuration);
+        std::string premiumSettlementCurrency = payCurrency.code();
+
+        Handle<YieldTermStructure> yts = discountCurve.empty()
+            ? factory->market()->discountCurve(premiumSettlementCurrency, configuration)
+            : indexOrYieldCurve(factory->market(), discountCurve, configuration);
         Handle<Quote> fx;
-        if (tradeCurrency.code() != d.ccy) {
-            fx = factory->market()->fxRate(d.ccy + tradeCurrency.code(), configuration);
+        DLOG("Premium Discounting currency is " << premiumSettlementCurrency
+                                                  << ", trade currency is " << tradeCurrency.code()
+                                                  << ", configuration is " << configuration);
+        
+        // If the premium settlement currency is different from the trade currency, we need to get the FX rate
+        // for the premium settlement currency to the trade npvcurrency.                                                  
+        if (tradeCurrency.code() != premiumSettlementCurrency) {
+            fx = factory->market()->fxRate(premiumSettlementCurrency + tradeCurrency.code(), configuration);
         }
         QuantLib::ext::shared_ptr<PricingEngine> discountingEngine(new QuantExt::PaymentDiscountingEngine(yts, fx));
         fee->setPricingEngine(discountingEngine);
@@ -85,16 +113,24 @@ Date Trade::addPremiums(std::vector<QuantLib::ext::shared_ptr<Instrument>>& addI
 
         // 2) Add a trade leg for cash flow reporting, divide the amount by the multiplier, because the leg entries
         //    are multiplied with the trade multiplier in the cashflow report (and if used elsewhere)
-        legs_.push_back(
-            Leg(1, QuantLib::ext::make_shared<QuantExt::TypedCashFlow>(fee->cashFlow()->amount() * premiumMultiplier / tradeMultiplier,
-                fee->cashFlow()->date(),
-                QuantExt::TypedCashFlow::Type::Premium)));
+        if (premiumCurrency != payCurrency) {
+            auto fxFixingDate = fixingDate ? fixingDate.value() : fxIndex->fixingDate(fee->cashFlow()->date());
+            legs_.push_back(Leg(1, QuantLib::ext::make_shared<QuantExt::FXLinkedTypedCashFlow>(
+                                       fee->cashFlow()->date(), fxFixingDate,
+                                       fee->cashFlow()->amount() * premiumMultiplier / tradeMultiplier, fxIndex,
+                                       QuantExt::TypedCashFlow::Type::Premium)));
+        } else {
+            legs_.push_back(Leg(1, QuantLib::ext::make_shared<QuantExt::TypedCashFlow>(
+                                       fee->cashFlow()->amount() * premiumMultiplier / tradeMultiplier,
+                                       fee->cashFlow()->date(), QuantExt::TypedCashFlow::Type::Premium)));
+        }
         legCurrencies_.push_back(fee->currency().code());
-
         // premium * premiumMultiplier reflects the correct pay direction, set payer to false therefore
         legPayers_.push_back(false);
 
-	// update latest premium pay date
+        legCashflowInclusion_[legs_.size() - 1] = Trade::LegCashflowInclusion::Always;
+
+        // update latest premium pay date
         latestPremiumPayDate = std::max(latestPremiumPayDate, d.payDate);
 
         DLOG("added fee " << d.amount << " " << d.ccy << " payable on " << d.payDate << " to trade");
@@ -125,7 +161,7 @@ void Trade::setEnvelope(const Envelope& envelope) {
     envelope_ = envelope;
 }
 
-void Trade::setAdditionalData(const std::map<std::string, boost::any>& additionalData) {
+void Trade::setAdditionalData(const std::map<std::string, QuantLib::ext::any>& additionalData) {
     additionalData_ = additionalData;
 }
 
@@ -135,6 +171,8 @@ void Trade::reset() {
         savedNumberOfPricings_ += instrument_->getNumberOfPricings();
         savedCumulativePricingTime_ += instrument_->getCumulativePricingTime();
     }
+    // reset build status
+    setBuilt(false);
     // reset members
     instrument_ = QuantLib::ext::shared_ptr<InstrumentWrapper>();
     legs_.clear();
@@ -143,6 +181,7 @@ void Trade::reset() {
     npvCurrency_.clear();
     notional_ = Null<Real>();
     notionalCurrency_.clear();
+    legCashflowInclusion_.clear();
     maturity_ = Date();
     maturityType_.clear();
     issuer_.clear();
@@ -153,7 +192,7 @@ void Trade::reset() {
     additionalData_.clear();
 }
     
-const std::map<std::string, boost::any>& Trade::additionalData() const { return additionalData_; }
+const std::map<std::string, QuantLib::ext::any>& Trade::additionalData() const { return additionalData_; }
 
 void Trade::setLegBasedAdditionalData(const Size i, Size resultLegId) const {
     if (legs_.size() < i + 1)
@@ -162,8 +201,10 @@ void Trade::setLegBasedAdditionalData(const Size i, Size resultLegId) const {
     string legID = std::to_string(resultLegId == Null<Size>() ? i + 1 : resultLegId);
     for (Size j = 0; j < legs_[i].size(); ++j) {
         QuantLib::ext::shared_ptr<CashFlow> flow = legs_[i][j];
-        // pick flow with earliest future payment date on this leg
-        if (flow->date() > asof) {
+        QuantLib::ext::shared_ptr<Coupon> coupon = QuantLib::ext::dynamic_pointer_cast<Coupon>(flow);
+        auto date = (coupon) ? coupon->accrualEndDate() : flow->date();
+        if (date > asof) {
+        // pick flow with the earliest future accrual period end date on this leg
             Real flowAmount = 0.0;
             try {
                 flowAmount = flow->amount();
@@ -172,7 +213,7 @@ void Trade::setLegBasedAdditionalData(const Size i, Size resultLegId) const {
             }
             additionalData_["amount[" + legID + "]"] = flowAmount;
             additionalData_["paymentDate[" + legID + "]"] = ore::data::to_string(flow->date());
-            QuantLib::ext::shared_ptr<Coupon> coupon = QuantLib::ext::dynamic_pointer_cast<Coupon>(flow);
+            //QuantLib::ext::shared_ptr<Coupon> coupon = QuantLib::ext::dynamic_pointer_cast<Coupon>(flow);
             if (coupon) {
                 Real currentNotional = 0;
                 try {
@@ -227,7 +268,7 @@ void Trade::setLegBasedAdditionalData(const Size i, Size resultLegId) const {
                             baseCPI =
                                 QuantLib::CPI::laggedFixing(cpic->cpiIndex(), cpic->baseDate() + cpic->observationLag(),
                                                             cpic->observationLag(), cpic->observationInterpolation());
-                        } catch (std::exception& e) {
+                        } catch (std::exception&) {
                             ALOG("CPICoupon baseCPI could not be interpolated for additional results for trade " << id()
                                                                                                              << ".")
                         }
@@ -242,7 +283,7 @@ void Trade::setLegBasedAdditionalData(const Size i, Size resultLegId) const {
                             baseCPI = QuantLib::CPI::laggedFixing(cpicf->cpiIndex(),
                                                                   cpicf->baseDate() + cpicf->observationLag(),
                                                                   cpicf->observationLag(), cpicf->interpolation());
-                        } catch (std::exception& e) {
+                        } catch (std::exception&) {
                             ALOG("CPICashFlow baseCPI could not be interpolated for additional results for trade " << id()
                                                                                                                << ".")
                         }
@@ -348,6 +389,95 @@ void Trade::updateProductModelEngineAdditionalData() {
         additionalData_["PricingConfigEngine" + suffix] = e;
         ++counter;
     }
+}
+
+std::vector<TradeCashflowReportData> Trade::cashflows(const std::string& baseCurrency,
+                                                      const QuantLib::ext::shared_ptr<ore::data::Market>& market,
+                                                      const std::string& configuration,
+                                                      const bool includePastCashflows) const {
+    std::vector<TradeCashflowReportData> result;
+
+    QL_REQUIRE(market, "Trade::cashflows(): market is required.");
+
+    Date asof = Settings::instance().evaluationDate();
+
+    string specificDiscountStr = envelope().additionalField("discount_curve", false);
+    Handle<YieldTermStructure> specificDiscountCurve;
+    if (!specificDiscountStr.empty())
+        specificDiscountCurve = indexOrYieldCurve(market, specificDiscountStr, configuration);
+
+    Real multiplier = instrument()->multiplier() * instrument()->multiplier2();
+
+    // add cashflows from (ql-) additional results in instrument and additional instruments
+
+    std::map<Size, Size> cashflowNumber;
+
+    populateReportDataFromAdditionalResults(result, cashflowNumber, instrument()->additionalResults(), multiplier,
+                                            baseCurrency, npvCurrency(), market, specificDiscountCurve, configuration,
+                                            includePastCashflows);
+
+    for (std::size_t i = 0; i < instrument()->additionalInstruments().size(); ++i) {
+        populateReportDataFromAdditionalResults(result, cashflowNumber,
+                                                instrument()->additionalInstruments()[i]->additionalResults(),
+                                                instrument()->additionalMultipliers()[i], baseCurrency, npvCurrency(),
+                                                market, specificDiscountCurve, configuration, includePastCashflows);
+    }
+
+    // determine offset for leg numbering to avoid conflicting leg numbers from add results and leg-based results
+
+    Size legNoOffset = 0;
+    if (auto l = std::max_element(
+            result.begin(), result.end(),
+            [](const TradeCashflowReportData& d1, const TradeCashflowReportData& d2) { return d1.legNo < d2.legNo; });
+        l != result.end()) {
+        legNoOffset = l->legNo;
+    }
+
+    // add cashflows from trade legs, if no cashflows were added so far or if a leg is marked as mandatory for cashflows
+
+    bool haveEngineCashflows = !result.empty();
+    for (size_t i = 0; i < legs().size(); i++) {
+        Trade::LegCashflowInclusion cashflowInclusion = Trade::LegCashflowInclusion::IfNoEngineCashflows;
+        if (auto incl = legCashflowInclusion().find(i); incl != legCashflowInclusion().end()) {
+            cashflowInclusion = incl->second;
+        }
+
+        if (cashflowInclusion == Trade::LegCashflowInclusion::Never ||
+            (cashflowInclusion == Trade::LegCashflowInclusion::IfNoEngineCashflows && haveEngineCashflows))
+            continue;
+
+        const QuantLib::Leg& leg = legs()[i];
+        bool payer = legPayers()[i];
+
+        string ccy = legCurrencies()[i];
+
+        Handle<YieldTermStructure> discountCurve = specificDiscountCurve;
+        if (discountCurve.empty()) {
+            discountCurve = market->discountCurve(ccy, configuration);
+        }
+
+        auto fxRateCcyBase = market->fxRate(npvCurrency_ + baseCurrency, configuration)->value();
+        auto fxRateLocalCcy = market->fxRate(ccy + npvCurrency_, configuration)->value();
+        auto fxRateLocalBase = fxRateCcyBase * fxRateLocalCcy;
+
+        for (size_t j = 0; j < leg.size(); j++) {
+            QuantLib::ext::shared_ptr<QuantLib::CashFlow> ptrFlow = leg[j];
+            if (!ptrFlow->hasOccurred(asof) || includePastCashflows) {
+                result.push_back(getCashflowReportData(
+                    ptrFlow, payer, multiplier, baseCurrency, ccy, asof,
+                    specificDiscountCurve.empty() ? *discountCurve : *specificDiscountCurve, fxRateLocalBase,
+                    [&market, &configuration](const std::string qualifier) {
+                        return *market->swaptionVol(qualifier, configuration);
+                    },
+                    [&market, &configuration](const std::string qualifier) {
+                        return *market->capFloorVol(qualifier, configuration);
+                    }));
+                result.back().cashflowNo = j + 1;
+                result.back().legNo = i + legNoOffset;
+            }
+        }
+    }
+    return result;
 }
 
 } // namespace data

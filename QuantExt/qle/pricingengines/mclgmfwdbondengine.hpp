@@ -45,10 +45,16 @@ public:
                        const std::vector<Date> simulationDates = std::vector<Date>(),
                        const std::vector<Date>& stickyCloseOutDates = std::vector<Date>(),
                        const std::vector<Size> externalModelIndices = std::vector<Size>(),
-                       const bool minimalObsDate = true, const RegressorModel regressorModel = RegressorModel::Simple,
+                       const bool minimalObsDate = true, const McRegressionModel::RegressorModel regressorModel = McRegressionModel::RegressorModel::Simple,
                        const Real regressionVarianceCutoff = Null<Real>(),
                        const bool recalibrateOnStickyCloseOutDates = false,
-                       const bool reevaluateExerciseInStickyRun = false)
+                       const bool reevaluateExerciseInStickyRun = false,
+                       const Size cfOnCpnMaxSimTimes = 1,
+                       const Period& cfOnCpnAddSimTimesCutoff = Period(),
+                       const Size regressionMaxSimTimesIr = 0,
+                       const Size regressionMaxSimTimesFx = 0,
+                       const Size regressionMaxSimTimesEq = 0,
+                       const McRegressionModel::VarGroupMode regressionVarGroupMode = McRegressionModel::VarGroupMode::Global)
         : GenericEngine<QuantExt::ForwardBond::arguments, QuantExt::ForwardBond::results>(),
           McMultiLegBaseEngine(Handle<CrossAssetModel>(QuantLib::ext::make_shared<CrossAssetModel>(
                                    std::vector<QuantLib::ext::shared_ptr<IrModel>>(1, model),
@@ -57,7 +63,9 @@ public:
                                calibrationSeed, pricingSeed, polynomOrder, polynomType, ordering, directionIntegers,
                                {discountCurve}, simulationDates, stickyCloseOutDates, externalModelIndices,
                                minimalObsDate, regressorModel, regressionVarianceCutoff, recalibrateOnStickyCloseOutDates,
-                               reevaluateExerciseInStickyRun) {
+                               reevaluateExerciseInStickyRun, cfOnCpnMaxSimTimes, cfOnCpnAddSimTimesCutoff,
+                               regressionMaxSimTimesIr, regressionMaxSimTimesFx, regressionMaxSimTimesEq,
+                               regressionVarGroupMode) {
 
         incomeCurve_ = incomeCurve;
         contractCurve_ = contractCurve;

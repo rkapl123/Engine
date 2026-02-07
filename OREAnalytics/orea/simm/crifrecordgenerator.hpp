@@ -106,7 +106,7 @@ public:
                         const string& discountIndex);
     virtual ~CrifRecordGenerator(){};
 
-    virtual boost::optional<ore::analytics::CrifRecord> operator()(const ore::analytics::SensitivityRecord& sr,
+    virtual QuantLib::ext::optional<ore::analytics::CrifRecord> operator()(const ore::analytics::SensitivityRecord& sr,
                                                                    std::set<std::string>& failedTrades);
     
 
@@ -254,7 +254,7 @@ protected:
         return data;
     }
 
-    virtual double CdsAtmVol(const std::string& tradeId, const std::string& optionExpiry) const;
+    virtual std::optional<double> CdsAtmVol(const std::string& tradeId, const std::string& optionExpiry) const;
 };
 
 class SimmRecordGenerator : public CrifRecordGenerator {

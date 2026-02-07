@@ -38,7 +38,7 @@
 
 #include <boost/algorithm/string.hpp>
 
-#include <ql/tuple.hpp>
+#include <tuple>
 #include <ql/errors.hpp>
 
 #include <iomanip>
@@ -97,7 +97,7 @@ CrifGenerator::generateCrif(const QuantLib::ext::shared_ptr<ore::analytics::Sens
     auto results = QuantLib::ext::make_shared<Crif>();
 
     // A map that will be used to store Risk_FX sensitivities for the (base) currency itself for each trade.
-    map<QuantLib::ext::tuple<string, string, string>, CrifRecord> riskFxCalcCurrency;
+    map<std::tuple<string, string, string>, CrifRecord> riskFxCalcCurrency;
 
     set<string> failedTrades;
 
@@ -147,7 +147,7 @@ std::vector<ore::analytics::CrifRecord> CrifGenerator::processSensitivityStream(
 
     const auto& ids = tradeData_->simmTradeIds();
 
-    vector<boost::optional<CrifRecord>> crifRecords;
+    vector<QuantLib::ext::optional<CrifRecord>> crifRecords;
     map<string, CrifRecord> fxRiskRecords, riskFxCalcCurrency;
 
     // Loop over the sensi stream
@@ -167,8 +167,8 @@ std::vector<ore::analytics::CrifRecord> CrifGenerator::processSensitivityStream(
         if (failedTrades.find(sr.tradeId) != failedTrades.end())
             continue;
 
-        vector<boost::optional<CrifRecord>> records;
-        boost::optional<CrifRecord> record = simmRecord_->operator()(sr, failedTrades);
+        vector<QuantLib::ext::optional<CrifRecord>> records;
+        QuantLib::ext::optional<CrifRecord> record = simmRecord_->operator()(sr, failedTrades);
 
         // Post processing of records to ensure they are in a simm standard ccy
         // also generate additional inflation risk entries for "unidade" ccys - see QPR_11424
@@ -195,7 +195,7 @@ std::vector<ore::analytics::CrifRecord> CrifGenerator::processSensitivityStream(
                                                     "Removing FXVol entry with qualifier '" + record->qualifier +
                                                         "' arising from ccy standardization.")
                         .log();
-                    record = boost::none;
+                    record = QuantLib::ext::nullopt;
                 }
             }
         }

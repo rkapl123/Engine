@@ -24,6 +24,7 @@
 #include <ql/math/generallinearleastsquares.hpp>
 #include <ql/math/matrixutilities/qrdecomposition.hpp>
 #include <ql/math/matrixutilities/symmetricschurdecomposition.hpp>
+#include <ql/math/rounding.hpp>
 
 #include <boost/math/distributions/normal.hpp>
 
@@ -177,13 +178,13 @@ void Filter::updateDeterministic() {
     if (deterministic_ || !initialised())
         return;
     resumeCalcStats();
-    for (Size i = 0; i < n_; ++i) {
-        if (data_[i] != constantData_) {
-            stopCalcStats(i);
+    for (Size i = 1; i < n_; ++i) {
+        if (data_[i] != data_[0]) {
+            stopCalcStats(i - 1);
             return;
         }
     }
-    setAll(constantData_);
+    setAll(data_[0]);
     stopCalcStats(n_);
 }
 
@@ -466,14 +467,14 @@ void RandomVariable::clear() {
 void RandomVariable::updateDeterministic() {
     if (deterministic_ || !initialised())
         return;
-    for (Size i = 0; i < n_; ++i) {
+    for (Size i = 1; i < n_; ++i) {
         resumeCalcStats();
-        if (!QuantLib::close_enough(data_[i], constantData_)) {
-            stopCalcStats(i);
+        if (!QuantLib::close_enough(data_[i], data_[0])) {
+            stopCalcStats(i - 1);
             return;
         }
     }
-    setAll(constantData_);
+    setAll(data_[0]);
     stopCalcStats(n_);
 }
 
@@ -729,6 +730,29 @@ RandomVariable pow(RandomVariable x, const RandomVariable& y) {
     return x;
 }
 
+RandomVariable round(RandomVariable x, const RandomVariable& y) {
+    if (!x.initialised() || !y.initialised())
+        return RandomVariable();
+    QL_REQUIRE(x.size() == y.size(),
+               "RandomVariable: round(x,y): x size (" << x.size() << ") must be equal to y size (" << y.size() << ")");
+    x.checkTimeConsistencyAndUpdate(y.time());
+    if (!y.deterministic_)
+        x.expand();
+    if (x.deterministic()){
+        QuantLib::Rounding rnd(y.constantData_, QuantLib::Rounding::Closest, 5);
+        x.constantData_ = rnd(x.constantData_);
+    }
+    else {
+        resumeCalcStats();
+        for (Size i = 0; i < x.size(); ++i) {
+            QuantLib::Rounding rnd(y.constantData_, QuantLib::Rounding::Closest, 5);
+            x.data_[i] = rnd(x.constantData_);
+        }
+        stopCalcStats(x.size());
+    }
+    return x;
+}
+
 RandomVariable operator-(RandomVariable x) {
     if (x.deterministic_)
         x.constantData_ = -x.constantData_;
@@ -788,6 +812,20 @@ RandomVariable sqrt(RandomVariable x) {
         resumeCalcStats();
         for (Size i = 0; i < x.n_; ++i) {
             x.data_[i] = std::sqrt(x.data_[i]);
+        }
+        stopCalcStats(x.n_);
+    }
+    return x;
+}
+
+RandomVariable frac(RandomVariable x) {
+    double iptr;
+    if (x.deterministic_)
+        x.constantData_ = std::modf(x.constantData_, &iptr);
+    else {
+        resumeCalcStats();
+        for (Size i = 0; i < x.n_; ++i) {
+            x.data_[i] = std::modf(x.data_[i], &iptr);
         }
         stopCalcStats(x.n_);
     }
@@ -889,16 +927,14 @@ RandomVariable conditionalResult(const Filter& f, RandomVariable x, const Random
                "conditionalResult(f,x,y): f size (" << f.size() << ") must match x size (" << x.size() << ")");
     QL_REQUIRE(f.size() == y.size(),
                "conditionalResult(f,x,y): f size (" << f.size() << ") must match y size (" << y.size() << ")");
-    x.checkTimeConsistencyAndUpdate(y.time());
     if (f.deterministic()) {
         if (f.at(0))
             return x;
         else {
-            RandomVariable tmp(y);
-            tmp.setTime(x.time());
-            return tmp;
+            return y;
         }
     }
+    x.checkTimeConsistencyAndUpdate(y.time());
     resumeCalcStats();
     x.expand();
     for (Size i = 0; i < f.size(); ++i) {

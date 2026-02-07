@@ -78,8 +78,8 @@
 #include <ored/marketdata/wrappedmarket.hpp>
 #include <ored/marketdata/yieldcurve.hpp>
 #include <ored/marketdata/yieldvolcurve.hpp>
+#include <ored/model/assetmodelbuilderbase.hpp>
 #include <ored/model/blackscholesmodelbuilder.hpp>
-#include <ored/model/blackscholesmodelbuilderbase.hpp>
 #include <ored/model/calibrationbasket.hpp>
 #include <ored/model/calibrationconfiguration.hpp>
 #include <ored/model/calibrationinstrumentfactory.hpp>
@@ -99,7 +99,10 @@
 #include <ored/model/eqbsdata.hpp>
 #include <ored/model/fxbsbuilder.hpp>
 #include <ored/model/fxbsdata.hpp>
+#include <ored/model/hestonmodelbuilder.hpp>
 #include <ored/model/hwbuilder.hpp>
+#include <ored/model/hwhistoricalcalibrationmodelbuilder.hpp>
+#include <ored/model/hwhistoricalcalibrationmodeldata.hpp>
 #include <ored/model/inflation/infdkbuilder.hpp>
 #include <ored/model/inflation/infdkdata.hpp>
 #include <ored/model/inflation/infjybuilder.hpp>
@@ -107,6 +110,7 @@
 #include <ored/model/inflation/inflationmodeldata.hpp>
 #include <ored/model/irhwmodeldata.hpp>
 #include <ored/model/irlgmdata.hpp>
+#include <ored/model/irmodelbuilder.hpp>
 #include <ored/model/irmodeldata.hpp>
 #include <ored/model/lgmbuilder.hpp>
 #include <ored/model/lgmdata.hpp>
@@ -131,6 +135,7 @@
 #include <ored/portfolio/bestentryoption.hpp>
 #include <ored/portfolio/bond.hpp>
 #include <ored/portfolio/bondbasket.hpp>
+#include <ored/portfolio/bondfuture.hpp>
 #include <ored/portfolio/bondoption.hpp>
 #include <ored/portfolio/bondposition.hpp>
 #include <ored/portfolio/bondrepo.hpp>
@@ -140,10 +145,12 @@
 #include <ored/portfolio/builders/asianoption.hpp>
 #include <ored/portfolio/builders/balanceguaranteedswap.hpp>
 #include <ored/portfolio/builders/bond.hpp>
+#include <ored/portfolio/builders/bondfuture.hpp>
 #include <ored/portfolio/builders/bondoption.hpp>
 #include <ored/portfolio/builders/bondrepo.hpp>
 #include <ored/portfolio/builders/bondtotalreturnswap.hpp>
 #include <ored/portfolio/builders/cachingenginebuilder.hpp>
+#include <ored/portfolio/builders/callablebond.hpp>
 #include <ored/portfolio/builders/capfloor.hpp>
 #include <ored/portfolio/builders/capflooredaveragebmacouponleg.hpp>
 #include <ored/portfolio/builders/capflooredaverageonindexedcouponleg.hpp>
@@ -193,6 +200,7 @@
 #include <ored/portfolio/builders/fxdigitaloption.hpp>
 #include <ored/portfolio/builders/fxdoublebarrieroption.hpp>
 #include <ored/portfolio/builders/fxdoubletouchoption.hpp>
+#include <ored/portfolio/builders/fxeuropeanbarrieroption.hpp>
 #include <ored/portfolio/builders/fxforward.hpp>
 #include <ored/portfolio/builders/fxoption.hpp>
 #include <ored/portfolio/builders/fxtouchoption.hpp>
@@ -209,8 +217,11 @@
 #include <ored/portfolio/builders/vanillaoption.hpp>
 #include <ored/portfolio/builders/varianceswap.hpp>
 #include <ored/portfolio/builders/yoycapfloor.hpp>
+#include <ored/portfolio/callablebond.hpp>
+#include <ored/portfolio/callablebondreferencedata.hpp>
 #include <ored/portfolio/callableswap.hpp>
 #include <ored/portfolio/capfloor.hpp>
+#include <ored/portfolio/cashflowutils.hpp>
 #include <ored/portfolio/cashposition.hpp>
 #include <ored/portfolio/cbo.hpp>
 #include <ored/portfolio/cdo.hpp>
@@ -317,6 +328,7 @@
 #include <ored/portfolio/schedule.hpp>
 #include <ored/portfolio/scriptedtrade.hpp>
 #include <ored/portfolio/simmcreditqualifiermapping.hpp>
+#include <ored/portfolio/strikeresettableoption.hpp>
 #include <ored/portfolio/structuredconfigurationerror.hpp>
 #include <ored/portfolio/structuredconfigurationwarning.hpp>
 #include <ored/portfolio/structuredtradeerror.hpp>
@@ -370,13 +382,17 @@
 #include <ored/scripting/engines/scriptedinstrumentpricingenginecg.hpp>
 #include <ored/scripting/grammar.hpp>
 #include <ored/scripting/models/amcmodel.hpp>
+#include <ored/scripting/models/assetmodel.hpp>
 #include <ored/scripting/models/blackscholes.hpp>
 #include <ored/scripting/models/blackscholescg.hpp>
+#include <ored/scripting/models/blackscholeslocalvolbase.hpp>
 #include <ored/scripting/models/dummymodel.hpp>
 #include <ored/scripting/models/fdgaussiancam.hpp>
 #include <ored/scripting/models/gaussiancam.hpp>
 #include <ored/scripting/models/gaussiancamcg.hpp>
+#include <ored/scripting/models/heston.hpp>
 #include <ored/scripting/models/lgmcg.hpp>
+#include <ored/scripting/models/localvol.hpp>
 #include <ored/scripting/models/model.hpp>
 #include <ored/scripting/models/modelcg.hpp>
 #include <ored/scripting/models/modelcgimpl.hpp>

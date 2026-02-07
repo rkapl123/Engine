@@ -90,7 +90,7 @@ std::vector<Real> SabrParametricVolatility::getGuess(const std::vector<std::pair
                 break;
             }
             case 2: {
-                result[2] = eps1 + randomSeq[j] * 5.0;
+                result[2] = eps1 + randomSeq[j] * max_nu;
                 break;
             }
             case 3: {
@@ -454,7 +454,7 @@ std::tuple<std::vector<Real>, Real, Real, Size> SabrParametricVolatility::calibr
         Problem problem(t, noConstraint, guess);
         try {
             lm.minimize(problem, endCriteria);
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             continue;
         }
 
@@ -599,7 +599,7 @@ void SabrParametricVolatility::calculate() {
             calibrationErrors_[key] = error;
             lognormalShifts_[key] = shift;
             noOfAttempts_[key] = noOfAttempts;
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             // all calibration failed -> do not populate params, but interpolate them below
         }
     }
@@ -664,7 +664,7 @@ void SabrParametricVolatility::calculate() {
     for (Size i = 0; i < m; ++i) {
         for (Size j = 0; j < n; ++j) {
             alpha_(i, j) = std::max(alpha_(i, j), 0.0);
-            beta_(i, j) = std::max(beta_(i, j), 0.0);
+            beta_(i, j) = std::max(std::min(beta_(i, j), 1.0), 0.0);
             nu_(i, j) = std::max(nu_(i, j), 0.0);
             rho_(i, j) = std::max(std::min(rho_(i, j), 1.0), -1.0);
         }
@@ -757,6 +757,36 @@ Real SabrParametricVolatility::evaluate(const Real timeToExpiry, const Real unde
     return convert(result, preferredOutputQuoteType(), lognormalShift, QuantLib::ext::nullopt, timeToExpiry, strike, forward,
                    outputMarketQuoteType, outputLognormalShift == Null<Real>() ? lognormalShift : outputLognormalShift,
                    outputOptionType);
+}
+
+QuantLib::ext::shared_ptr<SabrParametricVolatility> SabrParametricVolatility::clone(
+    const std::vector<ParametricVolatility::MarketSmile>& marketSmiles,
+    const std::vector<ParameterCalibration>& calibrationTypes) const {
+
+    auto modelParameters = modelParameters_;
+
+    if (calibrationTypes.size() > 0) {
+        // If calibration types are provided, we need to adjust the model parameters accordingly
+        for (Size i = 0; i < timeToExpiries_.size(); ++i) {
+            const auto& tte = timeToExpiries_[i];
+            for (Size j = 0; j < underlyingLengths_.size(); ++j) {
+                const auto& ul = underlyingLengths_[j];
+                auto key = std::make_pair(tte, ul);
+                QL_REQUIRE(calibrationTypes.size() == modelParameters[key].size(),
+                           "SabrParametricVolatility::clone(): number of calibration types ("
+                               << calibrationTypes.size() << ") does not match number of model parameters ("
+                               << modelParameters[key].size() << ") for ("
+                               << tte << ", " << ul << ").");
+                for (Size k = 0; k < modelParameters[key].size(); ++k) {
+                    modelParameters[key][k].second = calibrationTypes[k];
+                }
+            }
+        }
+    }
+
+    return QuantLib::ext::make_shared<SabrParametricVolatility>(
+        modelVariant_, marketSmiles, marketModelType_, inputMarketQuoteType_, discountCurve_, modelParameters,
+        modelShifts_, maxCalibrationAttempts_, exitEarlyErrorThreshold_, maxAcceptableError_);
 }
 
 } // namespace QuantExt

@@ -38,6 +38,8 @@ void CompositeTrade::build(const QuantLib::ext::shared_ptr<EngineFactory>& engin
     fxRates_.clear();
     fxRatesNotional_.clear();
     legs_.clear();
+    legPayers_.clear();
+    legCurrencies_.clear();
 
     populateFromReferenceData(engineFactory->referenceData());
 
@@ -81,19 +83,10 @@ void CompositeTrade::build(const QuantLib::ext::shared_ptr<EngineFactory>& engin
                                      instrumentWrapper->additionalMultipliers()[i]);
         }
 
-        bool isDuplicate = false;
-        try {
-            if (instrumentWrapper->additionalResults().find("cashFlowResults") !=
-                trade->instrument()->additionalResults().end())
-                isDuplicate = true;
-        } catch (...) {
-        }
-        if (!isDuplicate) {
-            // For cashflows
-            legs_.insert(legs_.end(), trade->legs().begin(), trade->legs().end());
-            legPayers_.insert(legPayers_.end(), trade->legPayers().begin(), trade->legPayers().end());
-            legCurrencies_.insert(legCurrencies_.end(), trade->legCurrencies().begin(), trade->legCurrencies().end());
-        }
+        // For cashflows
+        legs_.insert(legs_.end(), trade->legs().begin(), trade->legs().end());
+        legPayers_.insert(legPayers_.end(), trade->legPayers().begin(), trade->legPayers().end());
+        legCurrencies_.insert(legCurrencies_.end(), trade->legCurrencies().begin(), trade->legCurrencies().end());
 
         maturity_ = std::max(maturity_, trade->maturity());
         if (maturity_ == trade->maturity())
@@ -122,7 +115,8 @@ QuantLib::Real CompositeTrade::notional() const {
 }
 
 void CompositeTrade::fromXML(XMLNode* node) {
-    QL_REQUIRE("CompositeTrade" == XMLUtils::getChildValue(node, "TradeType", true),
+    
+    QL_REQUIRE("CompositeTrade" == XMLUtils::getAnyChildValue(node, {"TradeType", "SubTradeType"}, true),
                "Wrong trade type in composite trade builder.");
     Trade::fromXML(node);
     this->id() = XMLUtils::getAttribute(node, "id");
@@ -164,9 +158,24 @@ void CompositeTrade::fromXML(XMLNode* node) {
     }
     if ((portfolioBasket_ && portfolioId_.empty()) || (!portfolioBasket_)) {
 
-        vector<XMLNode*> nodes = XMLUtils::getChildrenNodes(tradesNode, "Trade");
+        vector<XMLNode*> tradeNodes = XMLUtils::getChildrenNodes(tradesNode, "Trade");
+        vector<XMLNode*> subTradeNodes = XMLUtils::getChildrenNodes(tradesNode, "SubTrade");
+        vector<XMLNode*> nodes = vector<XMLNode*>();
+        nodes.insert(nodes.end(), tradeNodes.begin(), tradeNodes.end());
+        nodes.insert(nodes.end(), subTradeNodes.begin(), subTradeNodes.end());
+            
+        //vector<XMLNode*> nodes = XMLUtils::getChildrenNodes(tradesNode, "Trade");
         for (Size i = 0; i < nodes.size(); i++) {
-            string tradeType = XMLUtils::getChildValue(nodes[i], "TradeType", true);
+            string tradeType = XMLUtils::getChildValue(nodes[i], "TradeType", false);
+            string subTradeType = XMLUtils::getChildValue(nodes[i], "SubTradeType", false);
+            if (tradeType.empty()) {
+                if (subTradeType.empty()) {
+                    std::cout << "No trade type or sub trade type found\n";
+                } else {
+                    tradeType = subTradeType;
+                }
+            }
+            
             string id = XMLUtils::getAttribute(nodes[i], "id");
             if (id == "") {
                 WLOG("Empty component trade id being overwritten in composite trade " << this->id() << ".");
@@ -178,6 +187,7 @@ void CompositeTrade::fromXML(XMLNode* node) {
             try {
                 trade = TradeFactory::instance().build(tradeType);
                 trade->id() = id;
+                trade->isSubTrade() = true;
                 Envelope componentEnvelope;
                 if (XMLNode* envNode = XMLUtils::getChildNode(nodes[i], "Envelope")) {
                     componentEnvelope.fromXML(envNode);
@@ -268,7 +278,7 @@ CompositeTrade::underlyingIndices(const QuantLib::ext::shared_ptr<ReferenceDataM
     return result;
 }
 
-const std::map<std::string, boost::any>& CompositeTrade::additionalData() const {
+const std::map<std::string, QuantLib::ext::any>& CompositeTrade::additionalData() const {
     additionalData_.clear();
     Size counter = 0;
     for (auto const& t : trades_) {
@@ -315,6 +325,18 @@ bool CompositeTrade::isExpired(const Date& d) const {
     }
     // if we get here all the trades are expired and so is the composite
     return true;
+}
+
+std::vector<TradeCashflowReportData> CompositeTrade::cashflows(const std::string& baseCurrency,
+    const QuantLib::ext::shared_ptr<ore::data::Market>& market,
+    const std::string& configuration,
+    const bool includePastCashflows) const {
+    std::vector<TradeCashflowReportData> cashflows;
+    for (const auto& t : trades_) {
+		auto tradeCashflows = t->cashflows(baseCurrency, market, configuration, includePastCashflows);
+		cashflows.insert(cashflows.end(), tradeCashflows.begin(), tradeCashflows.end());
+	}
+    return cashflows;
 }
 
 } // namespace data

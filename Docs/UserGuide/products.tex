@@ -7,7 +7,7 @@
 \begin{document}
 
 \title{ORE Product Catalogue \\ [1ex] \large Payoffs, Trade Input, Pricing}
-\date{24 June 2025}
+\date{30 January 2026}
 \maketitle
 
 \newpage
@@ -33,6 +33,8 @@ Date & Author & Comment \\
 24 May 2024 & Acadia & updates for release 12\\
 September 2024 & Acadia & updates for release 13\\
 January 2025 & Acadia & separate user guide, risk methodology, product catalogue\\
+October 2025 & Acadia & updates for release 14\\
+January 2026 & Acadia & updates for release 15\\
 \hline
 \end{supertabular}
 \end{center}
@@ -101,11 +103,13 @@ followed by a similar length elaboration of the pricing methodology applied per 
 \input{tradedata/bondposition}
 \input{tradedata/forwardbond}
 \input{tradedata/bondForward_refdata}
+\input{tradedata/bondfuture}
 \input{tradedata/bondrepo}
 \input{tradedata/bondoption}
 \input{tradedata/bondoption_refdata}
 \input{tradedata/bondTotalReturnSwap}
 \input{tradedata/convertiblebond}
+\input{tradedata/callablebond}
 \input{tradedata/ascot}
 \input{tradedata/cbodata.tex}
 
@@ -141,13 +145,15 @@ followed by a similar length elaboration of the pricing methodology applied per 
 \input{tradedata/basketoption}
 \input{tradedata/worstofbasketswap}
 \input{tradedata/accumulator}
+\input{tradedata/extendedaccumulator}
 \input{tradedata/tarf}
 \input{tradedata/knockoutswap}
+\input{tradedata/strikeresettableoption}
 % generic scripted products
 \input{tradedata/rainbow_option} % 12 variations of scripted payoffs
 \input{tradedata/var_and_vol_derivatives} % 12 variations of scripted payoffs
 \input{tradedata/genericscriptedproducts}
-%\input{tradedata/scriptedtrades} % 17 variations of scripted payoffs, exlcuded here for now
+%\input{tradedata/scriptedtrades} % 17 variations of scripted payoffs, excluded here for now
 
 \input{tradedata/flexiswap}
 \input{tradedata/balanceguaranteedswap}
@@ -289,8 +295,10 @@ curves by cash flow currency and forwarding curves per index, see \ref{sec:curve
 \input{pricing/rainbow_option}
 \input{pricing/var_and_vol_derivatives}
 \input{pricing/accumulator}
+\input{pricing/extendedaccumulator}
 \input{pricing/tarf}
 \input{pricing/knockoutswap}
+\input{pricing/strikeresettableoption}
 \input{pricing/scriptedtrades}
 %- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 \subsection{Credit Derivatives}
@@ -332,6 +340,7 @@ curves by cash flow currency and forwarding curves per index, see \ref{sec:curve
 \input{pricing/cash_bond.tex}
 \input{pricing/cash_bondrepo.tex}
 \input{pricing/convertiblebond.tex}
+\input{pricing/callablebond.tex}
 \input{pricing/ascot.tex}
 \input{pricing/cr_cbo.tex}
 

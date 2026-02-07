@@ -24,6 +24,7 @@
 #pragma once
 
 #include <orea/scenario/scenario.hpp>
+#include <orea/scenario/scenariosimmarketparameters.hpp>
 
 #include <set>
 
@@ -45,7 +46,8 @@ QuantLib::Real addDifferenceToScenario(const RiskFactorKey::KeyType keyType, con
 QuantLib::ext::shared_ptr<Scenario> addDifferenceToScenario(const QuantLib::ext::shared_ptr<Scenario>& s,
                                                             const QuantLib::ext::shared_ptr<Scenario>& d,
                                                             const QuantLib::Date& targetScenarioAsOf = QuantLib::Date(),
-                                                            const QuantLib::Real targetScenarioNumeraire = 0.0);
+                                                            const QuantLib::Real targetScenarioNumeraire = 0.0,
+                                                            const bool allowAdditionalKeysInD = false);
 
 QuantLib::ext::shared_ptr<Scenario>
 recastScenario(const QuantLib::ext::shared_ptr<Scenario>& scenario,
@@ -64,5 +66,11 @@ QuantLib::ext::shared_ptr<Scenario> recastScenario(
 QuantLib::Real sanitizeScenarioValue(const RiskFactorKey::KeyType keyType, const bool isPar,
                                      const QuantLib::Real rawValue);
 
+QuantLib::ext::shared_ptr<Scenario>
+absoluteToSpreadedScenario(const QuantLib::ext::shared_ptr<Scenario>& scenario,
+                           const QuantLib::ext::shared_ptr<Scenario>& base,
+                           const QuantLib::ext::shared_ptr<ScenarioSimMarketParameters>& simMarketData);
+
+std::vector<Period> getShiftedTenors(const std::vector<Period>& tenors, const QuantLib::Date& asof, const QuantLib::Date& mpor);
 } // namespace analytics
 } // namespace ore

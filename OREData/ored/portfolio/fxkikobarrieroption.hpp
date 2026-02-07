@@ -58,11 +58,14 @@ public:
     //@{
     const OptionData& option() const { return option_; }
     const vector<BarrierData>& barriers() const { return barriers_; }
-    double boughtAmount() const { return boughtAmount_; }
-    double soldAmount() const { return soldAmount_; }
+    QuantLib::Real boughtAmount() const { return boughtAmount_; }
+    QuantLib::Real soldAmount() const { return soldAmount_; }
     const string& startDate() const { return startDate_; }
     const string& calendar() const { return calendar_; }
     const string& fxIndex() const { return fxIndex_; }
+    QuantLib::Real strike() const { return soldAmount_ / boughtAmount_; }
+    QuantLib::Real notional() const override;
+    string notionalCurrency() const override;
     //@}
 
     //! \name Serialisation
@@ -76,8 +79,9 @@ private:
     string startDate_;
     string calendar_;
     string fxIndex_;
-    double boughtAmount_;
-    double soldAmount_;
+    QuantLib::Real boughtAmount_;
+    QuantLib::Real soldAmount_;
+    QuantLib::ext::shared_ptr<Trade> delegatingBuilderTrade_;
 };
 } // namespace data
 } // namespace oreplus

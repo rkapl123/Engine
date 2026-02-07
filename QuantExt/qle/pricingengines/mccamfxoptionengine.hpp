@@ -46,9 +46,12 @@ public:
         const std::vector<Date>& simulationDates = std::vector<Date>(),
         const std::vector<Date>& stickyCloseOutDates = std::vector<Date>(),
         const std::vector<Size>& externalModelIndices = std::vector<Size>(), const bool minimalObsDate = true,
-        const RegressorModel regressorModel = RegressorModel::Simple,
+        const McRegressionModel::RegressorModel regressorModel = McRegressionModel::RegressorModel::Simple,
         const Real regressionVarianceCutoff = Null<Real>(), const bool recalibrateOnStickyCloseOutDates = false,
-        const bool reevaluateExerciseInStickyRun = false);
+        const bool reevaluateExerciseInStickyRun = false, const Size cfOnCpnMaxSimTimes = 1,
+        const Period& cfOnCpnAddSimTimesCutoff = Period(), const Size regressionMaxSimTimesIr = 0,
+        const Size regressionMaxSimTimesFx = 0, const Size regressionMaxSimTimesEq = 0,
+        const McRegressionModel::VarGroupMode regressionVarGroupMode = McRegressionModel::VarGroupMode::Global);
 
     void setupLegs() const;
     void calculateFxOptionBase() const;
@@ -77,15 +80,20 @@ public:
         const std::vector<Date>& simulationDates = std::vector<Date>(),
         const std::vector<Date>& stickyCloseOutDates = std::vector<Date>(),
         const std::vector<Size>& externalModelIndices = std::vector<Size>(), const bool minimalObsDate = true,
-        const RegressorModel regressorModel = RegressorModel::Simple,
+        const McRegressionModel::RegressorModel regressorModel = McRegressionModel::RegressorModel::Simple,
         const Real regressionVarianceCutoff = Null<Real>(), const bool recalibrateOnStickyCloseOutDates = false,
-        const bool reevaluateExerciseInStickyRun = false)
+        const bool reevaluateExerciseInStickyRun = false, const Size cfOnCpnMaxSimTimes = 1,
+        const Period& cfOnCpnAddSimTimesCutoff = Period(), const Size regressionMaxSimTimesIr = 0,
+        const Size regressionMaxSimTimesFx = 0, const Size regressionMaxSimTimesEq = 0,
+        const McRegressionModel::VarGroupMode regressionVarGroupMode = McRegressionModel::VarGroupMode::Global)
         : McCamFxOptionEngineBase(model, domesticCcy, foreignCcy, npvCcy, calibrationPathGenerator,
                                   pricingPathGenerator, calibrationSamples, pricingSamples, calibrationSeed,
                                   pricingSeed, polynomOrder, polynomType, ordering, directionIntegers, discountCurves,
                                   simulationDates, stickyCloseOutDates, externalModelIndices, minimalObsDate,
                                   regressorModel, regressionVarianceCutoff, recalibrateOnStickyCloseOutDates,
-                                  reevaluateExerciseInStickyRun) {
+                                  reevaluateExerciseInStickyRun, cfOnCpnMaxSimTimes, cfOnCpnAddSimTimesCutoff,
+                                  regressionMaxSimTimesIr, regressionMaxSimTimesFx, regressionMaxSimTimesEq,
+                                  regressionVarGroupMode) {
         registerWith(model_);
         for (auto const& h : discountCurves_)
             registerWith(h);
@@ -106,15 +114,20 @@ public:
         const std::vector<Date>& simulationDates = std::vector<Date>(),
         const std::vector<Date>& stickyCloseOutDates = std::vector<Date>(),
         const std::vector<Size>& externalModelIndices = std::vector<Size>(), const bool minimalObsDate = true,
-        const RegressorModel regressorModel = RegressorModel::Simple,
+        const McRegressionModel::RegressorModel regressorModel = McRegressionModel::RegressorModel::Simple,
         const Real regressionVarianceCutoff = Null<Real>(), const bool recalibrateOnStickyCloseOutDates = false,
-        const bool reevaluateExerciseInStickyRun = false)
+        const bool reevaluateExerciseInStickyRun = false, const Size cfOnCpnMaxSimTimes = 1,
+        const Period& cfOnCpnAddSimTimesCutoff = Period(), const Size regressionMaxSimTimesIr = 0,
+        const Size regressionMaxSimTimesFx = 0, const Size regressionMaxSimTimesEq = 0,
+        const McRegressionModel::VarGroupMode regressionVarGroupMode = McRegressionModel::VarGroupMode::Global)
         : McCamFxOptionEngineBase(model, domesticCcy, foreignCcy, npvCcy, calibrationPathGenerator,
                                   pricingPathGenerator, calibrationSamples, pricingSamples, calibrationSeed,
                                   pricingSeed, polynomOrder, polynomType, ordering, directionIntegers, discountCurves,
                                   simulationDates, stickyCloseOutDates, externalModelIndices, minimalObsDate,
                                   regressorModel, regressionVarianceCutoff, recalibrateOnStickyCloseOutDates,
-                                  reevaluateExerciseInStickyRun) {
+                                  reevaluateExerciseInStickyRun, cfOnCpnMaxSimTimes, cfOnCpnAddSimTimesCutoff,
+                                  regressionMaxSimTimesIr, regressionMaxSimTimesFx, regressionMaxSimTimesEq,
+                                  regressionVarGroupMode) {
         registerWith(model_);
         for (auto const& h : discountCurves_)
             registerWith(h);
@@ -135,15 +148,20 @@ public:
         const std::vector<Date>& simulationDates = std::vector<Date>(),
         const std::vector<Date>& stickyCloseOutDates = std::vector<Date>(),
         const std::vector<Size>& externalModelIndices = std::vector<Size>(), const bool minimalObsDate = true,
-        const RegressorModel regressorModel = RegressorModel::Simple,
+        const McRegressionModel::RegressorModel regressorModel = McRegressionModel::RegressorModel::Simple,
         const Real regressionVarianceCutoff = Null<Real>(), const bool recalibrateOnStickyCloseOutDates = false,
-        const bool reevaluateExerciseInStickyRun = false)
+        const bool reevaluateExerciseInStickyRun = false, const Size cfOnCpnMaxSimTimes = 1,
+        const Period& cfOnCpnAddSimTimesCutoff = Period(), const Size regressionMaxSimTimesIr = 0,
+        const Size regressionMaxSimTimesFx = 0, const Size regressionMaxSimTimesEq = 0,
+        const McRegressionModel::VarGroupMode regressionVarGroupMode = McRegressionModel::VarGroupMode::Global)
         : McCamFxOptionEngineBase(model, domesticCcy, foreignCcy, npvCcy, calibrationPathGenerator,
                                   pricingPathGenerator, calibrationSamples, pricingSamples, calibrationSeed,
                                   pricingSeed, polynomOrder, polynomType, ordering, directionIntegers, discountCurves,
                                   simulationDates, stickyCloseOutDates, externalModelIndices, minimalObsDate,
                                   regressorModel, regressionVarianceCutoff, recalibrateOnStickyCloseOutDates,
-                                  reevaluateExerciseInStickyRun) {
+                                  reevaluateExerciseInStickyRun, cfOnCpnMaxSimTimes, cfOnCpnAddSimTimesCutoff,
+                                  regressionMaxSimTimesIr, regressionMaxSimTimesFx, regressionMaxSimTimesEq,
+                                  regressionVarGroupMode) {
         registerWith(model_);
         for (auto const& h : discountCurves_)
             registerWith(h);

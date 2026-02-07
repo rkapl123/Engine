@@ -26,6 +26,7 @@
 
 #include <ored/configuration/commoditycurveconfig.hpp>
 #include <ored/configuration/conventions.hpp>
+#include <ored/configuration/yieldcurveconfig.hpp>
 #include <ored/portfolio/types.hpp>
 #include <ored/utilities/log.hpp>
 
@@ -35,7 +36,7 @@
 #include <qle/instruments/cdsoption.hpp>
 #include <qle/methods/multipathgeneratorbase.hpp>
 #include <qle/models/crossassetmodel.hpp>
-#include <qle/pricingengines/mcmultilegbaseengine.hpp>
+#include <qle/pricingengines/mcregressionmodel.hpp>
 #include <qle/termstructures/sabrparametricvolatility.hpp>
 #include <qle/termstructures/scenario.hpp>
 
@@ -44,7 +45,7 @@
 #include <ql/currency.hpp>
 #include <ql/exercise.hpp>
 #include <ql/instruments/doublebarriertype.hpp>
-#include <ql/experimental/fx/deltavolquote.hpp>
+#include <ql/quotes/deltavolquote.hpp>
 #include <ql/instruments/averagetype.hpp>
 #include <ql/instruments/barriertype.hpp>
 #include <ql/instruments/bond.hpp>
@@ -487,10 +488,10 @@ QuantLib::YoYInflationCapFloor::Type parseYoYInflationCapFloorType(const std::st
 */
 QuantExt::CrossAssetModel::AssetType parseCamAssetType(const std::string& s);
 
-/*! Convert boost::any to pair<string,string>, including the valueType and the value
+/*! Convert QuantLib::ext::any to pair<string,string>, including the valueType and the value
     \ingroup utilities
 */
-std::pair<string, string> parseBoostAny(const boost::any& anyType, Size precision = 8);
+std::pair<string, string> parseBoostAny(const QuantLib::ext::any& anyType, Size precision = 8);
 
 //! Convert text to QuantLib::RateAveraging::Type
 QuantLib::RateAveraging::Type parseOvernightIndexFutureNettingType(const std::string& s);
@@ -585,17 +586,44 @@ CreditPortfolioSensitivityDecomposition parseCreditPortfolioSensitivityDecomposi
 //! Output operator for CreditPortfolioSensitivityDecomposition
 std::ostream& operator<<(std::ostream& os, const CreditPortfolioSensitivityDecomposition d);
 
-//! Convert text to QuantLib::Pillar::Choice
+//! Convert text to YieldCurveSegment::Type
 /*!
 \ingroup utilities
 */
-QuantLib::Pillar::Choice parsePillarChoice(const std::string& s);
+YieldCurveSegment::Type parseYieldCurveSegment(const string& s);
+
+//! Output operator for YieldCurveSegment::Type
+std::ostream& operator<<(std::ostream& os, const YieldCurveSegment::Type c);
+
+//! Convert text to YieldCurveSegment::PillarChoice
+/*!
+\ingroup utilities
+*/
+YieldCurveSegment::PillarChoice parsePillarChoice(const std::string& s);
+
+//! Output operator for YieldCurveSegment::PillarChoice
+std::ostream& operator<<(std::ostream& os, const YieldCurveSegment::PillarChoice c);
+
+//! Convert text to YieldCurveSegment::DuplicatePillarPolicy
+/*!
+\ingroup utilities
+*/
+YieldCurveSegment::DuplicatePillarPolicy parseDuplicatePillarPolicy(const std::string& s);
+
+//! Output operator for YieldCurveSegment::DuplicatePillarPolicy
+std::ostream& operator<<(std::ostream& os, const YieldCurveSegment::DuplicatePillarPolicy c);
 
 //! Convert text to QuantExt::McMultiLegBaseEngine::RegressorModel
 /*!
 \ingroup utilities
 */
-QuantExt::McMultiLegBaseEngine::RegressorModel parseRegressorModel(const std::string& s);
+QuantExt::McRegressionModel::RegressorModel parseRegressorModel(const std::string& s);
+
+//! Convert text to QuantExt::McMultiLegBaseEngine::VarGroupMode
+/*!
+\ingroup utilities
+*/
+QuantExt::McRegressionModel::VarGroupMode parseVarGroupMode(const std::string& s);
 
 enum MporCashFlowMode { Unspecified, NonePay, BothPay, WePay, TheyPay };
 
@@ -604,6 +632,13 @@ enum MporCashFlowMode { Unspecified, NonePay, BothPay, WePay, TheyPay };
 \ingroup utilities
 */
 MporCashFlowMode parseMporCashFlowMode(const std::string& s);
+
+//! Return Mpor Date given Mpor days and Mpor Calendar
+/*!
+\ingroup utilities
+*/
+QuantLib::Date calculateMporDate(const QuantLib::Size& mporDays, QuantLib::Date asOf = QuantLib::Date(),
+                                 std::string mporCalendar = "US");
 
 //! Write MporCashFlowMode to stream
 /*!
@@ -640,6 +675,25 @@ std::ostream& operator<<(std::ostream& os, SalvagingAlgorithm::Type type);
 
 //! parse integration policy
 QuantLib::ext::shared_ptr<Integrator> parseIntegrationPolicy(const std::string& s);
+
+//! Enum to control behavior when small diagonal elements are encountered in par conversion matrix
+enum class ParConversionMatrixRegularisation {
+    Silent,        //!< Set small diagonal elements to 0.01 without warnings (default behavior)
+    Warning,       //!< Set small diagonal elements to 0.01 but issue structured warnings
+    Disable        //!< Disable regularisation, use original diagonal elements as-is
+};
+
+//! Convert text to ParConversionMatrixRegularisation
+/*!
+\ingroup utilities
+*/
+ParConversionMatrixRegularisation parseParConversionMatrixRegularisation(const std::string& s);
+
+//! Write ParConversionMatrixRegularisation
+/*!
+\ingroup utilities
+*/
+std::ostream& operator<<(std::ostream& os, ParConversionMatrixRegularisation regularisation);
 
 std::vector<std::string> pairToStrings(std::pair<std::string, std::string> p);
 

@@ -19,6 +19,7 @@
 #include <orea/engine/marketriskbacktest.hpp>
 #include <qle/math/stoplightbounds.hpp>
 #include <ored/marketdata/todaysmarket.hpp>
+#include <ored/portfolio/structuredconfigurationwarning.hpp>
 #include <ored/report/report.hpp>
 #include <ored/utilities/to_string.hpp>
 #include <orea/cube/cubewriter.hpp>
@@ -55,10 +56,11 @@ MarketRiskBacktest::MarketRiskBacktest(
     std::unique_ptr<MultiThreadArgs> mtArgs,
     const ext::shared_ptr<HistoricalScenarioGenerator>& hisScenGen,
     const bool breakdown,
-    const bool requireTradePnl)
+    const bool requireTradePnl,
+    const QuantLib::ext::shared_ptr<TodaysMarketParameters>& marketConfig)
     : MarketRiskReport(calculationCurrency, portfolio, portfolioFilter, btArgs->backtestPeriod_, hisScenGen, std::move(sensiArgs), std::move(revalArgs),
                        std::move(mtArgs), breakdown, requireTradePnl),
-      btArgs_(std::move(btArgs)) {
+      btArgs_(std::move(btArgs)), todaysmarket_(marketConfig) {
 }
 
 void MarketRiskBacktest::initialise() {
@@ -67,8 +69,6 @@ void MarketRiskBacktest::initialise() {
     
     // If there is a mismatch between call and post, then we will have to exclude trade-level PnLs from the total (scenario) PnL
     requireTradePnl_ = callTradeIds_ != postTradeIds_;
-
-    baselTrafficLightMatrix_ = btArgs_->baselTrafficLight_->baselTrafficLightData();
 
     MarketRiskReport::initialise();
 }
@@ -107,7 +107,7 @@ void MarketRiskBacktest::handleSensiResults(const ext::shared_ptr<MarketRiskRepo
     sensiPnls_ = pnlCalculators_[1]->pnls();
     foSensiPnls_ = pnlCalculators_[1]->foPnls();
 
-    auto backtestPnlCalc = ext::dynamic_pointer_cast < BacktestPNLCalculator>(pnlCalculators_[1]);
+    auto backtestPnlCalc = ext::dynamic_pointer_cast<BacktestPNLCalculator>(pnlCalculators_[1]);
     QL_REQUIRE(backtestPnlCalc, "We must have a BacktestPnLCalculator");
     if (runTradeDetail(reports)) {
         foTradePnls_ = backtestPnlCalc->foTradePnls();
@@ -304,20 +304,28 @@ MarketRiskBacktest::SummaryResults MarketRiskBacktest::calculateSummary(
     // Now calculate the [red, amber] and [amber, green] bounds
     if (hisScenGen_->overlapping()) {
         try {
+            QL_REQUIRE(btArgs_->baselTrafficLight_, "No BaselTrafficLight data provided.");
+            auto baselTrafficLightMatrix = btArgs_->baselTrafficLight_->baselTrafficLightData();
+            auto it = baselTrafficLightMatrix.find(hisScenGen_->mporDays());
+            if (it == baselTrafficLightMatrix.end()) {
+                LOG("Couldn't parse BaselTrafficLight for " << hisScenGen_->mporDays()
+                                                            << " mporDays, defaulting to 10.");
+                it = baselTrafficLightMatrix.find(10);
+            }
 
             ore::data::BaselTrafficLightData::ObservationData trafficLightObs;
-            try {
-                trafficLightObs = baselTrafficLightMatrix_[hisScenGen_->mporDays()];
-            } catch (...) {
-                LOG("Couldn't parse BaselTrafficLight for " << hisScenGen_->mporDays() << " mporDays, defaulting to 10.");
-                trafficLightObs = baselTrafficLightMatrix_[10];
-            }
+            if (it != baselTrafficLightMatrix.end())
+                trafficLightObs = it->second;
+            else
+                QL_FAIL("Could not find tabulated stop light bounds" );
 
             sr.bounds = QuantExt::stopLightBoundsTabulated(btArgs_->ragLevels_, sr.observations,
                                                            hisScenGen_->mporDays(), btArgs_->confidence_,
                                                            trafficLightObs.observationCount, trafficLightObs.amberLimit, trafficLightObs.redLimit);
         } catch (const std::exception& e) {
-            ALOG("error while retrieving tabulated stop light bounds: " << e.what());
+            StructuredConfigurationWarningMessage("BaselTrafficLight data", "",
+                                                  "Error while retrieving tabulated stop light bounds.", e.what())
+                .log();
         }
         sr.boundsDecorrelated = QuantExt::stopLightBounds(btArgs_->ragLevels_, sr.observations, btArgs_->confidence_);
     } else {
@@ -365,6 +373,8 @@ void MarketRiskBacktest::createReports(const ext::shared_ptr<MarketRiskReport::R
         if (pnl) {
             for (const auto& t : pnlColumns())
                 pnl->addColumn(std::get<0>(t), std::get<1>(t), std::get<2>(t));
+            pnl->addColumn("DiscountSpecKey1", string());
+            pnl->addColumn("DiscountSpecKey2", string());
         }
     }
 
@@ -374,6 +384,8 @@ void MarketRiskBacktest::createReports(const ext::shared_ptr<MarketRiskReport::R
             pnlTrade->addColumn("TradeId", string());
             for (const auto& t : pnlColumns())
                 pnlTrade->addColumn(std::get<0>(t), std::get<1>(t), std::get<2>(t));
+            pnlTrade->addColumn("DiscountSpecKey1", string());
+            pnlTrade->addColumn("DiscountSpecKey2", string());
         }
     }
 }
@@ -446,6 +458,33 @@ void MarketRiskBacktest::addPnlRow(const QuantLib::ext::shared_ptr<BacktestRepor
         .add(currency.empty() || currency == calculationCurrency_ ? deltaPnl : deltaPnl / fxSpot)
         .add(currency.empty() || currency == calculationCurrency_ ? gammaPnl : gammaPnl / fxSpot)
         .add(currency.empty() ? calculationCurrency_ : currency);
+
+    // Append DiscountSpec column (from TodaysMarketParameters) if available and applicable
+    std::string discountSpecStr1;
+    if (todaysmarket_ && key_1.keytype == QuantExt::RiskFactorKey::KeyType::DiscountCurve) {
+        const auto& discMap = todaysmarket_->mapping(ore::data::MarketObject::DiscountCurve, ore::data::Market::defaultConfiguration);
+        auto it = discMap.find(key_1.name);
+        if (it != discMap.end()){
+            discountSpecStr1 = it->second;
+        }
+    }
+    if (!discountSpecStr1.empty())
+        report.add(discountSpecStr1);
+    else
+        report.add(string());
+
+    std::string discountSpecStr2;
+    if (todaysmarket_ && key_2.keytype == QuantExt::RiskFactorKey::KeyType::DiscountCurve) {
+        const auto& discMap = todaysmarket_->mapping(ore::data::MarketObject::DiscountCurve, ore::data::Market::defaultConfiguration);
+        auto it = discMap.find(key_2.name);
+        if (it != discMap.end()){
+            discountSpecStr2 = it->second;
+        }
+    }
+    if (!discountSpecStr2.empty())
+        report.add(discountSpecStr2);
+    else
+        report.add(string());
 }
 
 void BacktestPNLCalculator::writePNL(Size scenarioIdx, bool isCall, const RiskFactorKey& key_1, Real shift_1,

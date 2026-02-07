@@ -49,7 +49,9 @@ public:
                          const Period& onTenor, const Handle<Quote>& onSpread, Natural rateCutoff,
                          // Exogenous discount curve
                          const Handle<YieldTermStructure>& discountCurve = Handle<YieldTermStructure>(),
-                         const bool discountCurveGiven = false, const bool telescopicValueDates = false);
+                         const bool discountCurveGiven = false, const bool telescopicValueDates = false,
+                         const QuantLib::Pillar::Choice pillarChoice = QuantLib::Pillar::LastRelevantDate,
+                         const Date& customPillarDate = Date());
 
     //! \name RateHelper interface
     //@{
@@ -60,6 +62,7 @@ public:
     //@{
     Spread onSpread() const;
     QuantLib::ext::shared_ptr<AverageOIS> averageOIS() const;
+    const Leg& spreadLeg() const;
     //@}
     //! \name Visitability
     //@{
@@ -68,6 +71,7 @@ public:
 protected:
     void initializeDates() override;
     QuantLib::ext::shared_ptr<AverageOIS> averageOIS_;
+    Leg spreadLeg_;
     // Swap
     Period spotLagTenor_;
     Period swapTenor_;
@@ -89,6 +93,7 @@ protected:
     bool discountCurveGiven_;
     RelinkableHandle<YieldTermStructure> discountRelinkableHandle_;
     bool telescopicValueDates_;
+    QuantLib::Pillar::Choice pillarChoice_;
 };
 
 } // namespace QuantExt

@@ -25,7 +25,7 @@
 #endif
 #include <qle/quantext.hpp>
 %}
-
+%include common.i
 %include qle_common.i
 %include qle_calendars.i
 %include qle_cashflows.i
@@ -40,7 +40,6 @@
 %include qle_futureexpirycalculator.i
 %include qle_averageois.i
 %include qle_tenorbasisswap.i
-%include qle_oiccbasisswap.i
 %include qle_creditdefaultswap.i
 %include qle_averageoisratehelper.i
 

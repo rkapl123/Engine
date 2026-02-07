@@ -24,6 +24,7 @@
 #pragma once
 
 #include <qle/math/covariancesalvage.hpp>
+#include <ored/marketdata/todaysmarketparameters.hpp>
 #include <ored/portfolio/portfolio.hpp>
 #include <ored/utilities/progressbar.hpp>
 #include <orea/engine/historicalpnlgenerator.hpp>
@@ -137,7 +138,8 @@ public:
                        std::unique_ptr<MultiThreadArgs> mtArgs = nullptr,
                        const QuantLib::ext::shared_ptr<ore::analytics::HistoricalScenarioGenerator>& hisScenGen = nullptr,
                        const bool breakdown = false,
-                       const bool requireTradePnl = false);
+                       const bool requireTradePnl = false,
+                       const QuantLib::ext::shared_ptr<TodaysMarketParameters>& marketConfig = nullptr);
 
     virtual ~MarketRiskBacktest() {}
 
@@ -156,6 +158,8 @@ public:
 
 protected:
     std::unique_ptr<BacktestArgs> btArgs_;
+    // Todays market parameters used to map DiscountCurve nodes
+    QuantLib::ext::shared_ptr<ore::data::TodaysMarketParameters> todaysmarket_;
 
     void initialise() override;
     
@@ -169,8 +173,6 @@ protected:
     ore::analytics::TradePnLStore foTradePnls_, tradePnls_, sensiTradePnls_;
     std::set<std::string> callTradeIds_;
     std::set<std::string> postTradeIds_;
-
-    std::map<int, ore::data::BaselTrafficLightData::ObservationData> baselTrafficLightMatrix_;
 
     virtual const std::vector<std::tuple<std::string, ore::data::Report::ReportType, QuantLib::Size>> summaryColumns() = 0;
     virtual const std::vector<std::tuple<std::string, ore::data::Report::ReportType, QuantLib::Size, bool>> detailColumns() = 0;

@@ -29,7 +29,8 @@ using namespace QuantLib;
 using namespace QuantExt;
 
 QuantLib::ext::shared_ptr<PricingEngine> CamAmcFxForwardEngineBuilder::engineImpl(const Currency& forCcy,
-                                                                          const Currency& domCcy) {
+                                                                                  const Currency& domCcy,
+                                                                                  const std::string& discountCurve) {
 
     QL_REQUIRE(domCcy != forCcy, "CamAmcFxForwardEngineBuilder: domCcy = forCcy = " << domCcy.code());
 
@@ -64,13 +65,20 @@ QuantLib::ext::shared_ptr<PricingEngine> CamAmcFxForwardEngineBuilder::engineImp
         parseRegressorModel(engineParameter("RegressorModel", {}, false, "Simple")),
         parseRealOrNull(engineParameter("RegressionVarianceCutoff", {}, false, std::string())),
         parseBool(engineParameter("RecalibrateOnStickyCloseOutDates", {}, false, "false")),
-        parseBool(engineParameter("ReevaluateExerciseInStickyRun", {}, false, "false")));
+        parseBool(engineParameter("ReevaluateExerciseInStickyRun", {}, false, "false")),
+        parseInteger(engineParameter("CashflowGeneration.OnCpnMaxSimTimes", {}, false, "1")),
+        parsePeriod(engineParameter("CashflowGeneration.OnCpnAddSimTimesCutoff", {}, false, "0D")),
+        parseInteger(engineParameter("Regression.MaxSimTimesIR", {}, false, "0")),
+        parseInteger(engineParameter("Regression.MaxSimTimesFX", {}, false, "0")),
+        parseInteger(engineParameter("Regression.MaxSimTimesEQ", {}, false, "0")),
+        parseVarGroupMode(engineParameter("Regression.VarGroupMode", {}, false, "Global")));
 
     return engine;
 }
 
 QuantLib::ext::shared_ptr<PricingEngine> AmcCgFxForwardEngineBuilder::engineImpl(const Currency& forCcy,
-                                                                                 const Currency& domCcy) {
+                                                                                 const Currency& domCcy,
+                                                                                 const std::string& discountCurve) {
 
     QL_REQUIRE(domCcy != forCcy, "AmcCgFxForwardEngineBuilder: domCcy = forCcy = " << domCcy.code());
 

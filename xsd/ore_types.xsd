@@ -352,6 +352,7 @@
       <xs:enumeration value="30/360"/>
       <xs:enumeration value="30/360 US"/>
       <xs:enumeration value="30/360 (US)"/>
+      <xs:enumeration value="30/360 NASD"/>
       <xs:enumeration value="30U/360"/>
       <xs:enumeration value="30US/360"/>
       <xs:enumeration value="30/360 (Bond Basis)"/>
@@ -400,6 +401,7 @@
       <xs:enumeration value="Actual/364"/>
       <xs:enumeration value="Act/364"/>
       <xs:enumeration value="ACT/364"/>
+      <xs:enumeration value="Month"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -501,6 +503,7 @@
       <xs:enumeration value="NelsonSiegel"/>
       <xs:enumeration value="Svensson"/>
       <xs:enumeration value="BackwardFlat"/>
+      <xs:enumeration value="ForwardFlat"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -771,6 +774,7 @@
     <xs:restriction base="xs:string">
       <xs:enumeration value="IMM"/>
       <xs:enumeration value="FirstDayOfMonth"/>
+      <xs:enumeration value="SecondThursday"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -902,6 +906,15 @@
             <xs:element type="xs:float" name="Amount"/>
             <xs:element type="extendedCurrencyCode" name="Currency"/>
             <xs:element type="date" name="PayDate"/>
+            <xs:element name="SettlementData" minOccurs="0">
+              <xs:complexType>
+                <xs:all>
+                  <xs:element type="currencyCode" name="PayCurrency"/>
+                  <xs:element type="xs:string" name="FXIndex"/>
+                  <xs:element type="xs:string" name="FixingDate" minOccurs="0" maxOccurs="1" />
+                </xs:all>
+              </xs:complexType>
+            </xs:element>
           </xs:all>
         </xs:complexType>
       </xs:element>
@@ -966,6 +979,16 @@
       <xs:enumeration value="Fixed"/>
       <xs:enumeration value="Calibrated"/>
       <xs:enumeration value="Implied"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="roundingType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Up"/>
+      <xs:enumeration value="Down"/>
+      <xs:enumeration value="Closest"/>
+      <xs:enumeration value="Floor"/>
+      <xs:enumeration value="Ceiling"/>
     </xs:restriction>
   </xs:simpleType>
 

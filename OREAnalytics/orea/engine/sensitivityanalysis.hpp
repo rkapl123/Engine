@@ -76,8 +76,9 @@ public:
         const QuantLib::ext::shared_ptr<ore::data::TodaysMarketParameters>& todaysMarketParams = nullptr,
         const bool nonShiftedBaseCurrencyConversion = false,
         const QuantLib::ext::shared_ptr<ReferenceDataManager>& referenceData = nullptr,
-        const IborFallbackConfig& iborFallbackConfig = IborFallbackConfig::defaultConfig(),
-        const bool continueOnError = false, bool dryRun = false);
+        const QuantLib::ext::shared_ptr<IborFallbackConfig>& iborFallbackConfig =
+            QuantLib::ext::make_shared<IborFallbackConfig>(IborFallbackConfig::defaultConfig()),
+        const bool continueOnError = false, const bool dryRun = false, const bool useAtParCouponsTrades = true);
 
     //! Constructor using multi-threaded engine
     SensitivityAnalysis(const Size nThreads, const Date& asof,
@@ -92,9 +93,11 @@ public:
                         const QuantLib::ext::shared_ptr<ore::data::TodaysMarketParameters>& todaysMarketParams,
                         const bool nonShiftedBaseCurrencyConversion = false,
                         const QuantLib::ext::shared_ptr<ReferenceDataManager>& referenceData = nullptr,
-                        const IborFallbackConfig& iborFallbackConfig = IborFallbackConfig::defaultConfig(),
+                        const QuantLib::ext::shared_ptr<IborFallbackConfig>& iborFallbackConfig =
+                            QuantLib::ext::make_shared<IborFallbackConfig>(IborFallbackConfig::defaultConfig()),
                         const bool continueOnError = false, bool dryRun = false,
-                        const std::string& context = "sensi analysis");
+                        const std::string& context = "sensi analysis", const bool useAtParCouponsCurves = true,
+                        const bool useAtParCouponsTrades = true);
 
     virtual ~SensitivityAnalysis() {}
 
@@ -165,7 +168,7 @@ private:
     // if true, convert sensis to base currency using the original (non-shifted) FX rate
     bool nonShiftedBaseCurrencyConversion_;
     QuantLib::ext::shared_ptr<ore::data::ReferenceDataManager> referenceData_;
-    IborFallbackConfig iborFallbackConfig_;
+    QuantLib::ext::shared_ptr<IborFallbackConfig> iborFallbackConfig_;
     // if true, the processing is continued even on build errors
     bool continueOnError_;
     //! the engine data (provided as input, needed to construct the engine factory)
@@ -183,6 +186,8 @@ private:
     Size nThreads_;
     QuantLib::ext::shared_ptr<ore::data::Loader> loader_;
     std::string context_;
+    bool useAtParCouponsCurves_ = true;
+    bool useAtParCouponsTrades_ = true;
 
 protected:
     QuantLib::ext::shared_ptr<Scenario> offsetScenario_;

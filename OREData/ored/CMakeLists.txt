@@ -1,8 +1,8 @@
 # cpp files, this list is maintained manually
 
 set(OREData_SRC configuration/basecorrelationcurveconfig.cpp
-configuration/bootstrapconfig.cpp
 configuration/baseltrafficlightconfig.cpp
+configuration/bootstrapconfig.cpp
 configuration/capfloorvolcurveconfig.cpp
 configuration/cdsvolcurveconfig.cpp
 configuration/commoditycurveconfig.cpp
@@ -66,8 +66,8 @@ marketdata/todaysmarketparameters.cpp
 marketdata/wrappedmarket.cpp
 marketdata/yieldcurve.cpp
 marketdata/yieldvolcurve.cpp
+model/assetmodelbuilderbase.cpp
 model/blackscholesmodelbuilder.cpp
-model/blackscholesmodelbuilderbase.cpp
 model/calibrationbasket.cpp
 model/calibrationconfiguration.cpp
 model/calibrationinstrumentfactory.cpp
@@ -87,7 +87,10 @@ model/eqbsbuilder.cpp
 model/eqbsdata.cpp
 model/fxbsbuilder.cpp
 model/fxbsdata.cpp
+model/hestonmodelbuilder.cpp
 model/hwbuilder.cpp
+model/hwhistoricalcalibrationmodelbuilder.cpp
+model/hwhistoricalcalibrationmodeldata.cpp
 model/inflation/infdkbuilder.cpp
 model/inflation/infdkdata.cpp
 model/inflation/infjybuilder.cpp
@@ -95,6 +98,7 @@ model/inflation/infjydata.cpp
 model/inflation/inflationmodeldata.cpp
 model/irhwmodeldata.cpp
 model/irlgmdata.cpp
+model/irmodelbuilder.cpp
 model/irmodeldata.cpp
 model/lgmbuilder.cpp
 model/lgmdata.cpp
@@ -117,6 +121,7 @@ portfolio/basketvarianceswap.cpp
 portfolio/bestentryoption.cpp
 portfolio/bond.cpp
 portfolio/bondbasket.cpp
+portfolio/bondfuture.cpp
 portfolio/bondoption.cpp
 portfolio/bondposition.cpp
 portfolio/bondrepo.cpp
@@ -129,6 +134,7 @@ portfolio/builders/bond.cpp
 portfolio/builders/bondoption.cpp
 portfolio/builders/bondrepo.cpp
 portfolio/builders/bondtotalreturnswap.cpp
+portfolio/builders/callablebond.cpp
 portfolio/builders/capfloor.cpp
 portfolio/builders/capflooredaveragebmacouponleg.cpp
 portfolio/builders/capflooredaverageonindexedcouponleg.cpp
@@ -178,6 +184,7 @@ portfolio/builders/fxdigitalbarrieroption.cpp
 portfolio/builders/fxdigitaloption.cpp
 portfolio/builders/fxdoublebarrieroption.cpp
 portfolio/builders/fxdoubletouchoption.cpp
+portfolio/builders/fxeuropeanbarrieroption.cpp
 portfolio/builders/fxforward.cpp
 portfolio/builders/fxoption.cpp
 portfolio/builders/fxtouchoption.cpp
@@ -192,8 +199,11 @@ portfolio/builders/swap.cpp
 portfolio/builders/swaption.cpp
 portfolio/builders/varianceswap.cpp
 portfolio/builders/yoycapfloor.cpp
+portfolio/callablebond.cpp
+portfolio/callablebondreferencedata.cpp
 portfolio/callableswap.cpp
 portfolio/capfloor.cpp
+portfolio/cashflowutils.cpp
 portfolio/cashposition.cpp
 portfolio/cbo.cpp
 portfolio/cdo.cpp
@@ -297,6 +307,7 @@ portfolio/referencedatafactory.cpp
 portfolio/riskparticipationagreement.cpp
 portfolio/schedule.cpp
 portfolio/scriptedtrade.cpp
+portfolio/strikeresettableoption.cpp
 portfolio/swap.cpp
 portfolio/swaption.cpp
 portfolio/tarf.cpp
@@ -331,6 +342,7 @@ scripting/engines/amccgcurrencyswapengine.cpp
 scripting/engines/amccgfxforwardengine.cpp
 scripting/engines/amccgfxoptionengine.cpp
 scripting/engines/amccgmultilegoptionengine.cpp
+scripting/engines/amccgpricingengine.cpp
 scripting/engines/amccgswapengine.cpp
 scripting/engines/analyticblackriskparticipationagreementengine.cpp
 scripting/engines/analyticxccyblackriskparticipationagreementengine.cpp
@@ -342,12 +354,16 @@ scripting/engines/scriptedinstrumentamccalculator.cpp
 scripting/engines/scriptedinstrumentpricingengine.cpp
 scripting/engines/scriptedinstrumentpricingenginecg.cpp
 scripting/grammar.cpp
+scripting/models/assetmodel.cpp
 scripting/models/blackscholes.cpp
 scripting/models/blackscholescg.cpp
+scripting/models/blackscholeslocalvolbase.cpp
 scripting/models/fdgaussiancam.cpp
 scripting/models/gaussiancam.cpp
 scripting/models/gaussiancamcg.cpp
+scripting/models/heston.cpp
 scripting/models/lgmcg.cpp
+scripting/models/localvol.cpp
 scripting/models/modelcg.cpp
 scripting/models/modelcgimpl.cpp
 scripting/models/modelimpl.cpp
@@ -464,8 +480,8 @@ marketdata/todaysmarketparameters.hpp
 marketdata/wrappedmarket.hpp
 marketdata/yieldcurve.hpp
 marketdata/yieldvolcurve.hpp
+model/assetmodelbuilderbase.hpp
 model/blackscholesmodelbuilder.hpp
-model/blackscholesmodelbuilderbase.hpp
 model/calibrationbasket.hpp
 model/calibrationconfiguration.hpp
 model/calibrationinstrumentfactory.hpp
@@ -485,7 +501,10 @@ model/eqbsbuilder.hpp
 model/eqbsdata.hpp
 model/fxbsbuilder.hpp
 model/fxbsdata.hpp
+model/hestonmodelbuilder.hpp
 model/hwbuilder.hpp
+model/hwhistoricalcalibrationmodelbuilder.hpp
+model/hwhistoricalcalibrationmodeldata.hpp
 model/inflation/infdkbuilder.hpp
 model/inflation/infdkdata.hpp
 model/inflation/infjybuilder.hpp
@@ -493,6 +512,7 @@ model/inflation/infjydata.hpp
 model/inflation/inflationmodeldata.hpp
 model/irhwmodeldata.hpp
 model/irlgmdata.hpp
+model/irmodelbuilder.hpp
 model/irmodeldata.hpp
 model/lgmbuilder.hpp
 model/lgmdata.hpp
@@ -517,6 +537,7 @@ portfolio/basketvarianceswap.hpp
 portfolio/bestentryoption.hpp
 portfolio/bond.hpp
 portfolio/bondbasket.hpp
+portfolio/bondfuture.hpp
 portfolio/bondoption.hpp
 portfolio/bondposition.hpp
 portfolio/bondrepo.hpp
@@ -526,10 +547,12 @@ portfolio/builders/ascot.hpp
 portfolio/builders/asianoption.hpp
 portfolio/builders/balanceguaranteedswap.hpp
 portfolio/builders/bond.hpp
+portfolio/builders/bondfuture.hpp
 portfolio/builders/bondoption.hpp
 portfolio/builders/bondrepo.hpp
 portfolio/builders/bondtotalreturnswap.hpp
 portfolio/builders/cachingenginebuilder.hpp
+portfolio/builders/callablebond.hpp
 portfolio/builders/capfloor.hpp
 portfolio/builders/capflooredaveragebmacouponleg.hpp
 portfolio/builders/capflooredaverageonindexedcouponleg.hpp
@@ -579,6 +602,7 @@ portfolio/builders/fxdigitalbarrieroption.hpp
 portfolio/builders/fxdigitaloption.hpp
 portfolio/builders/fxdoublebarrieroption.hpp
 portfolio/builders/fxdoubletouchoption.hpp
+portfolio/builders/fxeuropeanbarrieroption.hpp
 portfolio/builders/fxforward.hpp
 portfolio/builders/fxoption.hpp
 portfolio/builders/fxtouchoption.hpp
@@ -595,8 +619,11 @@ portfolio/builders/swaption.hpp
 portfolio/builders/vanillaoption.hpp
 portfolio/builders/varianceswap.hpp
 portfolio/builders/yoycapfloor.hpp
+portfolio/callablebond.hpp
+portfolio/callablebondreferencedata.hpp
 portfolio/callableswap.hpp
 portfolio/capfloor.hpp
+portfolio/cashflowutils.hpp
 portfolio/cashposition.hpp
 portfolio/cbo.hpp
 portfolio/cdo.hpp
@@ -703,6 +730,7 @@ portfolio/riskparticipationagreement.hpp
 portfolio/schedule.hpp
 portfolio/scriptedtrade.hpp
 portfolio/simmcreditqualifiermapping.hpp
+portfolio/strikeresettableoption.hpp
 portfolio/structuredconfigurationerror.hpp
 portfolio/structuredconfigurationwarning.hpp
 portfolio/structuredtradeerror.hpp
@@ -756,13 +784,17 @@ scripting/engines/scriptedinstrumentpricingengine.hpp
 scripting/engines/scriptedinstrumentpricingenginecg.hpp
 scripting/grammar.hpp
 scripting/models/amcmodel.hpp
+scripting/models/assetmodel.hpp
 scripting/models/blackscholes.hpp
 scripting/models/blackscholescg.hpp
+scripting/models/blackscholeslocalvolbase.hpp
 scripting/models/dummymodel.hpp
 scripting/models/fdgaussiancam.hpp
 scripting/models/gaussiancam.hpp
 scripting/models/gaussiancamcg.hpp
+scripting/models/heston.hpp
 scripting/models/lgmcg.hpp
+scripting/models/localvol.hpp
 scripting/models/model.hpp
 scripting/models/modelcg.hpp
 scripting/models/modelcgimpl.hpp
