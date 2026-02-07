@@ -79,37 +79,3 @@ jobs:
       with:
         name: ore-windows-${{ matrix.arch }}
         path: ./build/App/Release/*.*
-    - name: Wrap ORE-SWIG for Python Wheels
-      run: |
-        SET BOOST=C:\local\boost
-        SET Boost_ROOT=C:\local\boost
-        SET BOOST_INCLUDEDIR=C:\local\boost
-        SET BOOST_LIBRARYDIR=C:\local\boost\lib${{ matrix.boost-lib }}-msvc-14.3
-        SET BOOST_LIB64=C:\local\boost\lib${{ matrix.boost-lib }}-msvc-14.3
-        SET BOOST_LIB32=C:\local\boost\lib${{ matrix.boost-lib }}-msvc-14.3
-        cd ${{ github.workspace }}\ORE-SWIG
-        python setup.py wrap
-    - name: Build ORE Wheels
-      uses: pypa/cibuildwheel@v2.22.0
-      env:
-        BOOST: C:\local\boost
-        BOOST_LIB64: C:\local\boost\lib${{ matrix.boost-lib }}-msvc-14.3
-        BOOST_LIB32: C:\local\boost\lib${{ matrix.boost-lib }}-msvc-14.3
-        ORE: ${{ github.workspace }}
-        ORE_DIR: ${{ github.workspace }}
-        ORE_STATIC_RUNTIME: 1
-        ORE_USE_ZLIB: 1
-        CIBW_SKIP: cp36-*
-        #CIBW_BUILD: cp37-win_amd64
-        #CIBW_BUILD: cp38-win32
-        #CIBW_BUILD: cp37-*
-        CIBW_ARCHS_WINDOWS: ${{ matrix.arch }}
-        CIBW_BUILD_VERBOSITY: 2
-      with:
-        package-dir: ${{ github.workspace }}\ORE-SWIG
-    - name: Save wheels as artifacts
-      #if: startsWith(github.ref, 'refs/tags/v')
-      uses: actions/upload-artifact@v4
-      with:
-        name: wheels-windows-${{ matrix.arch }}
-        path: ./wheelhouse/*.whl
