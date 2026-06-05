@@ -1,5 +1,4 @@
-name: C/C++ CI Windows
-
+name: testboost
 on:
   push:
     tags:
