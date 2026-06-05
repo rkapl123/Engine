@@ -26,3 +26,4 @@ jobs:
         choco install -y ninja
         cd C:\local\boost
         ren lib64-msvc-14.3 lib
+        dir
