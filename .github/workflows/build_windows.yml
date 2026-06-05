@@ -47,8 +47,8 @@ jobs:
         (New-Object System.Net.WebClient).DownloadFile($Url, "$env:TEMP\boost.exe")
         Start-Process -Wait -FilePath "$env:TEMP\boost.exe" "/SILENT","/SP-","/SUPPRESSMSGBOXES","/DIR=C:\local\boost"
         choco install -y ninja
-        ren lib64-msvc-14.3 lib
-        dir lib
+        ren C:\local\boost\lib64-msvc-14.3 lib
+        dir C:\local\boost\lib
     - name: cmake configure and build
       env:
         BOOST_ROOT: C:\local\boost
