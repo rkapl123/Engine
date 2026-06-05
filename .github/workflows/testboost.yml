@@ -25,4 +25,4 @@ jobs:
         Start-Process -Wait -FilePath "$env:TEMP\boost.exe" "/SILENT","/SP-","/SUPPRESSMSGBOXES","/DIR=C:\local\boost"
         choco install -y ninja
         cd C:\local\boost
-        dir
+        ren lib64-msvc-14.3 lib
