@@ -1,0 +1,29 @@
+name: C/C++ CI Windows
+
+on:
+  push:
+    tags:
+       - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: building
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: AMD64
+            platform: x64
+            boost-lib: 64
+
+    steps:
+    - name: Set up Boost
+      run: |
+        $Url = "https://archives.boost.io/release/1.80.0/binaries/boost_1_80_0-msvc-14.3-${{ matrix.boost-lib }}.exe"
+        (New-Object System.Net.WebClient).DownloadFile($Url, "$env:TEMP\boost.exe")
+        Start-Process -Wait -FilePath "$env:TEMP\boost.exe" "/SILENT","/SP-","/SUPPRESSMSGBOXES","/DIR=C:\local\boost"
+        choco install -y ninja
+        cd C:\local\boost
+        dir
